@@ -6,8 +6,8 @@ import VideoPreview from "@/components/VideoPreview";
 import SummaryDisplay from "@/components/SummaryDisplay";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
-// Extract YouTube video ID from URL
 const extractVideoId = (url: string): string | null => {
   const patterns = [
     /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
@@ -22,47 +22,25 @@ const extractVideoId = (url: string): string | null => {
   return null;
 };
 
-// Mock summary data (will be replaced by AI backend)
-const mockSummary = {
-  overview: "This video provides a comprehensive deep-dive into modern web development practices, covering everything from component architecture to deployment strategies. The presenter walks through real-world examples demonstrating how to build scalable applications using the latest frameworks and tooling.",
-  keyPoints: [
-    "Component-based architecture enables better code reusability and maintainability across large applications",
-    "Server-side rendering and static generation can dramatically improve performance and SEO",
-    "Type safety with TypeScript catches bugs at compile time rather than runtime",
-    "Modern CSS solutions like Tailwind provide utility-first approaches that scale with team size",
-    "Edge computing and serverless functions reduce infrastructure complexity",
-    "Testing strategies should cover unit, integration, and end-to-end scenarios",
-  ],
-  takeaways: [
-    "Start with a solid design system before writing component code",
-    "Invest in developer experience tooling early — it pays off exponentially",
-    "Performance optimization should be iterative, not premature",
-    "Choose boring technology for critical paths, experiment at the edges",
-  ],
-  timestamps: [
-    { time: "0:00", label: "Introduction and overview" },
-    { time: "2:34", label: "Setting up the project architecture" },
-    { time: "8:15", label: "Building the component library" },
-    { time: "15:42", label: "State management patterns" },
-    { time: "23:10", label: "API integration and data fetching" },
-    { time: "31:05", label: "Testing strategies and best practices" },
-    { time: "38:20", label: "Deployment and CI/CD pipeline" },
-    { time: "44:50", label: "Q&A and closing thoughts" },
-  ],
-  tags: ["Web Development", "React", "TypeScript", "Architecture", "Performance"],
-};
+interface VideoData {
+  title: string;
+  channel: string;
+  duration: string;
+  views: string;
+  likes: string;
+  published: string;
+}
 
-const mockVideo = {
-  title: "The Ultimate Guide to Modern Web Development in 2026",
-  channel: "Tech Explained",
-  duration: "47:23",
-  views: "1.2M views",
-  likes: "45K",
-  published: "Mar 5, 2026",
-};
+interface SummaryData {
+  overview: string;
+  keyPoints: string[];
+  takeaways: string[];
+  timestamps: { time: string; label: string }[];
+  tags: string[];
+}
 
 const features = [
-  { icon: <Sparkles className="h-5 w-5" />, title: "AI-Powered", desc: "Smart summaries using advanced AI" },
+  { icon: <Sparkles className="h-5 w-5" />, title: "AI-Powered", desc: "Smart summaries using Llama 3.3" },
   { icon: <Zap className="h-5 w-5" />, title: "Instant", desc: "Get summaries in seconds" },
   { icon: <BookOpen className="h-5 w-5" />, title: "Comprehensive", desc: "Key points, timestamps & more" },
   { icon: <Clock className="h-5 w-5" />, title: "Time-Saver", desc: "Hours of content in minutes" },
@@ -70,8 +48,8 @@ const features = [
 
 const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [videoData, setVideoData] = useState<typeof mockVideo | null>(null);
-  const [summaryData, setSummaryData] = useState<typeof mockSummary | null>(null);
+  const [videoData, setVideoData] = useState<VideoData | null>(null);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [videoId, setVideoId] = useState<string | null>(null);
 
   const handleSubmit = async (url: string) => {
@@ -86,28 +64,33 @@ const Index = () => {
     setSummaryData(null);
     setVideoData(null);
 
-    // Simulate fetching video info
-    setTimeout(() => {
-      setVideoData({
-        ...mockVideo,
+    try {
+      const { data, error } = await supabase.functions.invoke("summarize", {
+        body: { videoId: id },
       });
-    }, 500);
 
-    // Simulate AI summary generation
-    setTimeout(() => {
-      setSummaryData(mockSummary);
-      setIsLoading(false);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setVideoData({
+        ...data.videoInfo,
+        likes: "—",
+      });
+      setSummaryData(data.summary);
       toast.success("Summary generated successfully!");
-    }, 3000);
+    } catch (err: any) {
+      console.error("Summarize error:", err);
+      toast.error(err.message || "Failed to generate summary. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background bg-grid relative">
-      {/* Ambient glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative z-10 container mx-auto px-4 py-12 max-w-4xl">
-        {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -128,10 +111,8 @@ const Index = () => {
           </p>
         </motion.div>
 
-        {/* URL Input */}
         <UrlInput onSubmit={handleSubmit} isLoading={isLoading} />
 
-        {/* Features (show when no results) */}
         <AnimatePresence>
           {!videoData && !isLoading && (
             <motion.div
@@ -158,7 +139,6 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {/* Results */}
         <div className="mt-8 space-y-6">
           <AnimatePresence>
             {videoData && videoId && (
