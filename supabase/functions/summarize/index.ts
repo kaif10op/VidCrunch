@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
@@ -65,39 +66,55 @@ async function fetchTranscript(videoId: string): Promise<{ transcript: string; t
 function extractVideoInfo(html: string) {
   const titleMatch = html.match(/"title":"(.*?)"/);
   const channelMatch = html.match(/"ownerChannelName":"(.*?)"/);
-  const viewMatch = html.match(/"viewCount":"(\d+)"/);
   const lengthMatch = html.match(/"lengthSeconds":"(\d+)"/);
   const publishMatch = html.match(/"publishDate":"(.*?)"/);
+  const keywordsMatch = html.match(/<meta name="keywords" content="(.*?)"/);
+  const descMatch = html.match(/"shortDescription":"(.*?)"/);
 
+  // Robust View Extraction
+  const viewCountMatch = html.match(/"viewCount":"(\d+)"/);
+  const viewSimpleMatch = html.match(/"viewCount":\{"simpleText":"(.*?)"\}/);
+  const viewShortMatch = html.match(/"shortViewCountText":\{"accessibility":\{"accessibilityData":\{"label":"(.*?)"\}\}/);
+
+  let views = 0;
+  let formattedViews = "0 views";
+
+  if (viewCountMatch) {
+    views = parseInt(viewCountMatch[1]);
+  } else if (viewSimpleMatch) {
+    const text = viewSimpleMatch[1].replace(/,/g, "");
+    views = parseInt(text) || 0;
+    formattedViews = viewSimpleMatch[1];
+  }
+
+  if (views > 0) {
+    formattedViews = views > 1000000
+      ? `${(views / 1000000).toFixed(1)}M views`
+      : views > 1000
+        ? `${(views / 1000).toFixed(0)}K views`
+        : `${views} views`;
+  } else if (viewShortMatch) {
+    formattedViews = viewShortMatch[1];
+  }
+
+  // Robust Like Extraction
   const likeFactoidMatch = html.match(/"factoidRenderer":{"value":{"simpleText":"(.*?)"},"label":{"simpleText":"Likes"}}/);
   const likeCountMatch = html.match(/"likeCount":"(\d+)"/);
-  const likeAccessibilityMatch = html.match(/"accessibilityData":{"label":"([\d,MKB.]+)\s*(?:likes|like this video)/i);
+  const likeAccessMatch = html.match(/"accessibilityData":{"label":"([\d,MKB.]+)\s*(?:likes|like this video)/i);
 
   let likes = "0";
   if (likeFactoidMatch) {
     likes = likeFactoidMatch[1];
-  } else if (likeAccessibilityMatch) {
-    likes = likeAccessibilityMatch[1];
+  } else if (likeAccessMatch) {
+    likes = likeAccessMatch[1];
   } else if (likeCountMatch) {
     const count = parseInt(likeCountMatch[1]);
     likes = count > 1000000 ? `${(count / 1000000).toFixed(1)}M` : count > 1000 ? `${(count / 1000).toFixed(0)}K` : count.toString();
   }
 
-  const keywordsMatch = html.match(/<meta name="keywords" content="(.*?)"/);
-  const descMatch = html.match(/"shortDescription":"(.*?)"/);
-  const keywords = keywordsMatch ? keywordsMatch[1] : "";
-  const description = descMatch ? descMatch[1].replace(/\\n/g, "\n") : "";
-
   const lengthSec = lengthMatch ? parseInt(lengthMatch[1]) : 0;
   const mins = Math.floor(lengthSec / 60);
   const secs = lengthSec % 60;
-
-  const views = viewMatch ? parseInt(viewMatch[1]) : 0;
-  const formattedViews = views > 1000000
-    ? `${(views / 1000000).toFixed(1)}M views`
-    : views > 1000
-      ? `${(views / 1000).toFixed(0)}K views`
-      : `${views} views`;
 
   return {
     title: titleMatch ? titleMatch[1].replace(/\\"/g, '"') : "Unknown Title",
@@ -106,8 +123,8 @@ function extractVideoInfo(html: string) {
     views: formattedViews,
     likes,
     published: publishMatch ? publishMatch[1] : "",
-    keywords,
-    description,
+    keywords: keywordsMatch ? keywordsMatch[1] : "",
+    description: descMatch ? descMatch[1].replace(/\\n/g, "\n") : "",
   };
 }
 
@@ -154,24 +171,24 @@ async function callAI(provider: string, model: string, messages: any[], apiKey: 
 }
 
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders, status: 200 });
+  }
 
   try {
     const body: SummaryRequest = await req.json();
     const { videoId, videoIds: rawVideoIds, provider = "groq", model = "llama-3.3-70b-versatile", language = "English", style = "Detailed" } = body;
 
-    // Support both single videoId (backward compat) and array videoIds
     const videoIds: string[] = rawVideoIds && rawVideoIds.length > 0
       ? rawVideoIds.filter(Boolean).slice(0, 3)
       : videoId ? [videoId] : [];
 
-    if (videoIds.length === 0) throw new Error("videoId or videoIds is required");
+    if (videoIds.length === 0) throw new Error("videoId or videoId array is required");
 
     const envKey = `${provider.toUpperCase()}_API_KEY`;
     const apiKey = Deno.env.get(envKey);
-    if (!apiKey) throw new Error(`${envKey} is not configured`);
+    if (!apiKey) throw new Error(`${envKey} is not configured on Supabase Dashboard`);
 
-    // Fetch info and transcripts for all videos
     const videoDataArr: { videoInfo: any; transcript: string }[] = [];
     let primaryVideoInfo: any = null;
 
@@ -189,20 +206,13 @@ serve(async (req: Request) => {
         const transcriptData = await fetchTranscript(vid);
         transcript = transcriptData.transcript;
       } catch {
-        transcript = `[NO CAPTIONS — FALLBACK CONTEXT]
-Title: ${videoInfo.title}
-Channel: ${videoInfo.channel}
-Keywords: ${videoInfo.keywords}
-Description:
-${videoInfo.description.slice(0, 3000)}`;
+        transcript = `[NO CAPTIONS — FALLBACK CONTEXT]\nTitle: ${videoInfo.title}\nChannel: ${videoInfo.channel}\nKeywords: ${videoInfo.keywords}\nDescription:\n${videoInfo.description.slice(0, 3000)}`;
       }
 
       videoDataArr.push({ videoInfo, transcript });
     }
 
     const isMultiVideo = videoIds.length > 1;
-
-    // Build combined context for the AI
     const combinedContext = videoDataArr.map((vd, i) =>
       `=== VIDEO ${i + 1}: "${vd.videoInfo.title}" by ${vd.videoInfo.channel} ===\n${vd.transcript.slice(0, Math.floor(15000 / videoIds.length))}`
     ).join("\n\n");
@@ -240,33 +250,24 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
   "tags": ["tag1", "tag2"]
 }
 Rules:
-- quiz: Generate 8-10 questions with 4 options each. answer is the 0-based index of the correct option.
-- mindMap: Create 10-15 nodes and edges that visually map the key concepts. The first node (id "1") is always the central topic.
-- timestamps: 8-15 major section timestamps.
-- keyPoints: minimum 10 items.
-- Respond in ${language}.`;
+- Respond in ${language}. Generate very detailed content.`;
 
     const content = await callAI(provider, model, [
       { role: "system", content: systemPrompt },
       { role: "user", content: combinedContext }
     ], apiKey);
 
-    if (!content) {
-      throw new Error(`AI Provider (${provider}) returned an empty response. Check your API key and quota.`);
-    }
+    if (!content) throw new Error(`AI Provider (${provider}) returned an empty response.`);
 
     let summary;
     try {
-      // Find JSON block or treat whole response as JSON
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
       const jsonString = jsonMatch ? jsonMatch[1].trim() : content.trim();
       summary = JSON.parse(jsonString);
-    } catch (parseError) {
-      console.error("JSON Parse Error. Content:", content);
-      throw new Error(`Failed to parse AI response as JSON. The model may have returned malformed text. Error: ${parseError.message}`);
+    } catch {
+      throw new Error(`Failed to parse AI JSON response.`);
     }
 
-    // Return primary video info + all transcripts for the chat feature
     const allTranscripts = videoDataArr.map((vd, i) =>
       `[Video ${i + 1}: ${vd.videoInfo.title}]\n${vd.transcript}`
     ).join("\n\n---\n\n");
@@ -285,10 +286,10 @@ Rules:
   } catch (error) {
     console.error("Function Error:", error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Internal Server Error",
-      details: "Check Supabase Edge Function logs for more info."
+      error: error instanceof Error ? error.message : "Error",
+      details: "Check Supabase logs."
     }), {
-      status: 200, // Return 200 with error object so the frontend can show it nicely instead of a raw 500
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
