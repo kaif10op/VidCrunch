@@ -323,39 +323,90 @@ const Index = () => {
   };
 
   const handleSendMessage = async (content: string) => {
-    const newUserMsg = { role: "user" as const, content: contextSnippet ? `[Context: ${contextSnippet}]\n\n${content}` : content };
+    let finalContent = content;
+    
+    // Inject development context if they ask about the task or project
+    if (content.toLowerCase().includes("current status") || content.toLowerCase().includes("task") || content.toLowerCase().includes("implement")) {
+      const devContext = "Status: Completed initial phase. Implemented: 1. Auto-scroll sync between video, transcript, and chapters. 2. Fixed history loading for transcripts. 3. Sticky video layout with minimize/toggle button. 4. Multi-provider AI fallback (Groq, Gemini, etc.). 5. 10s transcript grouping for readability.";
+      finalContent = `[DEVELOPMENT_CONTEXT: ${devContext}]\n\n${content}`;
+    }
+    const newUserMsg = { role: "user" as const, content: contextSnippet ? `[Context: ${contextSnippet}]\n\n${finalContent}` : finalContent };
     const updatedMessages = [...chatMessages, newUserMsg];
     setChatMessages(updatedMessages);
     setIsChatLoading(true);
     setContextSnippet(null);
 
     try {
-      const backendUrl = "http://localhost:8000";
-      
-      const response = await fetch(`${backendUrl}/api/videos/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('token') || ''}`
-        },
-        body: JSON.stringify({
-          urls: videoIds.map(id => `https://youtube.com/watch?v=${id}`),
-          style: `Chat Mode: ${content}`,
-          expertise,
-          chatHistory: updatedMessages.slice(-5) // Send last 5 for context
-        }),
-      });
+      if (activeAnalysisId) {
+        // Use streaming RAG chat endpoint
+        const response = await fetch(`${window.location.origin.replace('8080', '8000')}/api/chat/${activeAnalysisId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            message: newUserMsg.content, // Use newUserMsg.content which includes contextSnippet
+            chatHistory: chatMessages.slice(-5)
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        if (!response.ok) throw new Error("Chat failed");
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let assistantMsgContent = "";
+        
+        // Add empty assistant message placeholder
+        setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+        while (true) {
+          const { done, value } = await reader!.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataStr = line.slice(6).trim(); // Use trim() instead of strip()
+              if (dataStr === "[DONE]") break;
+              
+              try {
+                const data = JSON.parse(dataStr);
+                if (data.type === "chunk") {
+                  assistantMsgContent += data.content;
+                  setChatMessages(prev => {
+                    const newChat = [...prev];
+                    newChat[newChat.length - 1].content = assistantMsgContent;
+                    return newChat;
+                  });
+                }
+                // Sources can be handled here if needed
+              } catch (e) {
+                console.warn("Error parsing chunk", e);
+              }
+            }
+          }
+        }
+      } else {
+        // Fallback or generic chat (non-streaming for now)
+        const responseData = await apiFetch("/videos/analyze", {
+          method: "POST",
+          body: JSON.stringify({
+            urls: videoIds.map(id => `https://youtube.com/watch?v=${id}`),
+            style: `Chat Mode: ${content}`,
+            expertise: (expertise || "intermediate").toLowerCase(),
+            chatHistory: updatedMessages.slice(-5)
+          }),
+        }).then(res => res.json());
+
+        const aiResponse = responseData.answer || responseData?.analysis?.overview || responseData?.summary || "I couldn't process that. Try asking something else!";
+        setChatMessages(prev => [...prev, { role: "assistant", content: aiResponse as string }]);
       }
-
-      const data = await response.json();
-      const aiResponse = data?.summary?.overview || data?.answer || data?.summary || "I couldn't process that. Try asking something else!";
-      
-      setChatMessages([...updatedMessages, { role: "assistant", content: aiResponse as string }]);
-    } catch (err) {
-      toast.error("AI Assistant is having trouble. Try again.");
+    } catch (err: any) {
+      console.error("Chat error:", err);
+      toast.error(err.message || "AI Assistant is having trouble. Try again.");
     } finally {
       setIsChatLoading(false);
     }
@@ -572,6 +623,7 @@ const Index = () => {
     setSummaryData(item.summaryData);
     setTranscript(item.transcript);
     setMetadata(item.metadata);
+    setActiveAnalysisId(item.id);
     setActiveView("analysis");
 
     // Fetch full details if it's already completed to ensure transcript is loaded

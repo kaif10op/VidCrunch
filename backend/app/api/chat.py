@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_db
 from app.middleware.auth import get_current_user
-from app.models.models import ChatMessage, TranscriptChunk, User, Video
+from app.models.models import Analysis, ChatMessage, TranscriptChunk, User, Video
 from app.schemas.schemas import ChatMessageResponse, ChatRequest, ChatResponse
 from app.services.credit_service import check_and_deduct
 
@@ -17,15 +17,26 @@ router = APIRouter()
 settings = get_settings()
 
 
-@router.post("/{video_id}", response_model=ChatResponse)
+from fastapi.responses import StreamingResponse
+import json
+
+@router.post("/{analysis_id}", response_model=ChatResponse)
 async def chat_with_video(
-    video_id: UUID,
+    analysis_id: UUID,
     req: ChatRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Ask a question about a video using RAG (vector search + LLM)."""
-    # Verify video exists
+    """Ask a question about a video using streaming RAG (vector search + LLM)."""
+    # Verify analysis and get video_id
+    result = await db.execute(
+        select(Analysis).where(Analysis.id == analysis_id, Analysis.user_id == user.id)
+    )
+    analysis = result.scalar_one_or_none()
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    
+    video_id = analysis.video_id
     video_result = await db.execute(select(Video).where(Video.id == video_id))
     video = video_result.scalar_one_or_none()
     if not video:
@@ -41,9 +52,7 @@ async def chat_with_video(
     relevant_chunks = await _search_chunks(db, video_id, question_embedding, top_k=5)
 
     if not relevant_chunks:
-        # Fallback: no embeddings yet, use raw transcript
         from app.models.models import Transcript
-
         t_result = await db.execute(select(Transcript).where(Transcript.video_id == video_id))
         transcript = t_result.scalar_one_or_none()
         context = transcript.full_text[:8000] if transcript else "No transcript available."
@@ -77,32 +86,49 @@ async def chat_with_video(
         messages.append({"role": h.role, "content": h.content})
     messages.append({"role": "user", "content": req.message})
 
-    # Call LLM
-    from app.services.ai_pipeline import _call_ai
+    from app.services.ai_pipeline import _stream_ai_with_fallback
     provider = settings.DEFAULT_AI_PROVIDER
     model = settings.DEFAULT_AI_MODEL
-    
-    try:
-        answer = await _call_ai(provider, model, messages)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"AI provider error: {e}")
 
-    # Save messages to history
-    db.add(ChatMessage(user_id=user.id, video_id=video_id, role="user", content=req.message))
-    db.add(ChatMessage(user_id=user.id, video_id=video_id, role="assistant", content=answer))
-    await db.flush()
+    async def event_generator():
+        full_answer = []
+        # First event: source information
+        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+        
+        async for chunk in _stream_ai_with_fallback(provider, model, messages):
+            full_answer.append(chunk)
+            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+        
+        # Save to history at the end
+        final_answer = "".join(full_answer)
+        # Note: We create a new session here or pass it if possible, but since we are in a generator
+        # it's safer to use a background task or just fire and forget if the session is still alive.
+        # For simplicity in this implementation, we'll assume the user message is saved beforehand.
+        db.add(ChatMessage(user_id=user.id, video_id=video_id, role="user", content=req.message))
+        db.add(ChatMessage(user_id=user.id, video_id=video_id, role="assistant", content=final_answer))
+        await db.commit()
+        
+        yield "data: [DONE]\n\n"
 
-    return ChatResponse(answer=answer, sources=sources)
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@router.get("/{video_id}/history", response_model=list[ChatMessageResponse])
+@router.get("/{analysis_id}/history", response_model=list[ChatMessageResponse])
 async def get_chat_history(
-    video_id: UUID,
+    analysis_id: UUID,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = 50,
 ):
-    """Get chat history for a video."""
+    """Get chat history for an analysis."""
+    # Get video_id from analysis first
+    result = await db.execute(
+        select(Analysis.video_id).where(Analysis.id == analysis_id, Analysis.user_id == user.id)
+    )
+    video_id = result.scalar_one_or_none()
+    if not video_id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.user_id == user.id, ChatMessage.video_id == video_id)
@@ -137,10 +163,10 @@ async def _search_chunks(
     result = await db.execute(
         text("""
             SELECT id, chunk_index, text, start_time, end_time,
-                   embedding <=> :embedding::vector AS distance
+                   embedding <=> CAST(:embedding AS vector) AS distance
             FROM transcript_chunks
             WHERE video_id = :video_id AND embedding IS NOT NULL
-            ORDER BY embedding <=> :embedding::vector
+            ORDER BY embedding <=> CAST(:embedding AS vector)
             LIMIT :top_k
         """),
         {"video_id": str(video_id), "embedding": embedding_str, "top_k": top_k},

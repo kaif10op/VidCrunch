@@ -65,7 +65,7 @@ class OAuthCallbackRequest(BaseModel):
 class VideoAnalyzeRequest(BaseModel):
     urls: list[str] = Field(min_length=1, max_length=5)
     expertise: str = Field(default="intermediate", pattern="^(beginner|intermediate|expert)$")
-    style: str = Field(default="detailed", max_length=100)
+    style: str = Field(default="detailed", max_length=2000)
     language: str = Field(default="English", max_length=50)
     full_analysis: bool = Field(default=False)
 

@@ -9,7 +9,7 @@ Handles:
 
 import json
 import logging
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 import httpx
 import tiktoken
@@ -280,41 +280,9 @@ async def synthesize_content(
         {"role": "user", "content": user_content},
     ]
 
-    # Dynamically build fallback chain based on available keys
-    fallback_chain = []
-    
-    # 1. Primary (requested)
-    fallback_chain.append((provider, model))
-    
-    # 2. Cerebras (if not primary)
-    if settings.CEREBRAS_API_KEY and provider != "cerebras":
-        fallback_chain.append(("cerebras", "llama3.1-70b"))
-    
-    # 3. xAI (if not primary)
-    if settings.XAI_API_KEY and provider != "xai":
-        fallback_chain.append(("xai", "grok-2-latest"))
-        
-    # 4. OpenRouter (if not primary)
-    if settings.OPENROUTER_API_KEY and provider != "openrouter":
-        fallback_chain.append(("openrouter", "google/gemini-2.0-flash-001"))
-
-    content = None
-    last_error = None
-
-    for p, m in fallback_chain:
-        try:
-            logger.info(f"Attempting synthesis with {p} ({m})...")
-            content = await _call_ai(p, m, messages)
-            if content:
-                logger.info(f"Synthesis successful with {p}")
-                break
-        except Exception as e:
-            logger.warning(f"AI provider {p} failed: {e}")
-            last_error = e
-            continue
-
-    if not content:
-        raise AIError(f"All available AI providers failed. Last error: {last_error}")
+    content = await _call_ai_with_fallback(
+        provider, model, messages, require_json=True
+    )
 
     if not content:
         raise AIError("AI provider returned empty response")
@@ -338,7 +306,7 @@ async def synthesize_content(
     raise AIError("Failed to parse AI response as JSON")
 
 
-async def _call_ai(provider: str, model: str, messages: list[dict]) -> str:
+async def _call_ai(provider: str, model: str, messages: list[dict], require_json: bool = True) -> str:
     """Call an AI provider's chat completion API.
 
     Supported providers:
@@ -389,8 +357,10 @@ async def _call_ai(provider: str, model: str, messages: list[dict]) -> str:
         "messages": messages,
         "temperature": 0.3,
         "max_tokens": 8000,
-        "response_format": {"type": "json_object"},
     }
+    
+    if require_json:
+        body["response_format"] = {"type": "json_object"}
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, headers=headers, json=body, timeout=120.0)
@@ -456,6 +426,129 @@ async def _call_google_ai(model: str, messages: list[dict]) -> str:
             raise AIError("Google AI returned empty content")
 
         return parts[0].get("text", "")
+
+
+async def _call_ai_with_fallback(
+    provider: str, model: str, messages: list[dict], require_json: bool = True
+) -> str:
+    """Try multiple AI providers in sequence if errors occur."""
+    fallback_chain = _get_fallback_chain(provider, model)
+    last_error = None
+
+    for p, m in fallback_chain:
+        try:
+            return await _call_ai(p, m, messages, require_json=require_json)
+        except Exception as e:
+            logger.warning(f"AI provider {p} fallback triggered: {e}")
+            last_error = e
+            continue
+
+    raise AIError(f"All AI providers failed. Last error: {last_error}")
+
+
+async def _stream_ai_with_fallback(
+    provider: str, model: str, messages: list[dict]
+) -> AsyncGenerator[str, None]:
+    """Try multiple AI providers in sequence for streaming."""
+    fallback_chain = _get_fallback_chain(provider, model)
+    
+    for p, m in fallback_chain:
+        try:
+            async for chunk in _stream_ai(p, m, messages):
+                yield chunk
+            return  # Success
+        except Exception as e:
+            logger.warning(f"AI streaming fallback for {p} triggered: {e}")
+            continue
+
+    yield "Error: All AI providers failed. Please try again later."
+
+
+def _get_fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
+    """Determine the order of AI providers to try."""
+    chain = []
+    
+    # 1. Primary
+    chain.append((provider or settings.DEFAULT_AI_PROVIDER, model or settings.DEFAULT_AI_MODEL))
+    
+    # 2. Secondary options based on what's configured
+    options = [
+        ("groq", "llama-3.3-70b-versatile"),
+        ("cerebras", "llama3.1-70b"),
+        ("google", "gemini-2.0-flash"),
+        ("xai", "grok-2-latest"),
+        ("openrouter", "google/gemini-2.0-flash-001"),
+    ]
+    
+    for opt_p, opt_m in options:
+        # Don't add if already in chain
+        if not any(p == opt_p for p, m in chain):
+            # Check if API key exists
+            key_exists = False
+            if opt_p == "groq" and settings.GROQ_API_KEY: key_exists = True
+            if opt_p == "cerebras" and settings.CEREBRAS_API_KEY: key_exists = True
+            if opt_p == "google" and settings.GOOGLE_AI_KEY: key_exists = True
+            if opt_p == "xai" and settings.XAI_API_KEY: key_exists = True
+            if opt_p == "openrouter" and settings.OPENROUTER_API_KEY: key_exists = True
+            
+            if key_exists:
+                chain.append((opt_p, opt_m))
+                
+    return chain
+
+
+async def _stream_ai(provider: str, model: str, messages: list[dict]) -> AsyncGenerator[str, None]:
+    """Stream response from an AI provider."""
+    if provider == "google":
+        # Google streaming is slightly different, but for now we fallback to non-stream or handle it
+        # Simplified: yield the whole response if streaming not easily piped
+        res = await _call_google_ai(model, messages)
+        yield res
+        return
+
+    url_map = {
+        "groq": "https://api.groq.com/openai/v1/chat/completions",
+        "openrouter": "https://openrouter.ai/api/v1/chat/completions",
+        "xai": "https://api.x.ai/v1/chat/completions",
+        "cerebras": "https://api.cerebras.ai/v1/chat/completions",
+    }
+    
+    url = url_map.get(provider, url_map["groq"])
+    api_key = getattr(settings, f"{provider.upper()}_API_KEY", settings.GROQ_API_KEY)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    
+    body = {
+        "model": model or settings.DEFAULT_AI_MODEL,
+        "messages": messages,
+        "temperature": 0.3,
+        "stream": True,
+    }
+
+    async with httpx.AsyncClient() as client:
+        async with client.stream("POST", url, headers=headers, json=body, timeout=60.0) as resp:
+            if resp.status_code != 200:
+                error = await resp.aread()
+                raise AIError(f"Streaming error {resp.status_code}: {error.decode()}")
+
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                
+                line_data = line[6:].strip()
+                if line_data == "[DONE]":
+                    break
+                
+                try:
+                    chunk = json.loads(line_data)
+                    delta = chunk["choices"][0]["delta"].get("content", "")
+                    if delta:
+                        yield delta
+                except Exception:
+                    continue
 
 
 def _truncate_to_tokens(text: str, max_tokens: int) -> str:
