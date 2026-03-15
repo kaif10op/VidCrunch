@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, ChevronRight, Brain, RotateCcw, Trophy } from "lucide-react";
+import { Check, X, ChevronRight, Brain, RotateCcw, Trophy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface QuizQuestion {
@@ -61,22 +61,24 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
 
   if (finished) {
     return (
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card rounded-2xl p-8 text-center space-y-6">
-        <Trophy className={`h-16 w-16 mx-auto ${pct >= 70 ? "text-yellow-400" : "text-muted-foreground"}`} />
-        <div>
-          <h3 className="font-display font-black text-3xl text-foreground">
-            {pct >= 90 ? "🎉 Outstanding!" : pct >= 70 ? "🎯 Well Done!" : "📚 Keep Learning!"}
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl p-10 text-center border shadow-sm border-gray-100">
+        <Trophy className={`h-16 w-16 mx-auto ${pct >= 70 ? "text-yellow-400" : "text-gray-300"}`} />
+        <div className="space-y-4">
+          <h3 className="text-3xl font-black text-foreground uppercase tracking-tight italic">
+            {pct >= 90 ? "Outstanding!" : pct >= 70 ? "Well Done!" : "Keep Learning!"}
           </h3>
-          <p className="text-muted-foreground mt-2">You scored</p>
-          <div className="text-6xl font-black text-primary my-4">{score}<span className="text-2xl text-muted-foreground">/{quiz.length}</span></div>
-          <div className="w-full h-3 bg-muted/30 rounded-full overflow-hidden">
-            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, ease: "easeOut" }} className={`h-full rounded-full ${pct >= 70 ? "bg-gradient-to-r from-primary to-green-500" : "bg-gradient-to-r from-orange-500 to-yellow-500"}`} />
+          <p className="text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Score Achieved</p>
+          <div className="text-7xl font-black text-foreground my-6">{score}<span className="text-2xl text-muted-foreground font-medium">/{quiz.length}</span></div>
+          <div className="w-full h-3 bg-gray-50 rounded-full overflow-hidden border">
+            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, ease: "easeOut" }} className={`h-full rounded-full ${pct >= 70 ? "bg-green-500" : "bg-orange-500"}`} />
           </div>
-          <p className="text-sm text-muted-foreground mt-2">{pct}% accuracy</p>
+          <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">{pct}% accuracy</p>
         </div>
-        <Button variant="hero" onClick={handleRestart} className="gap-2">
-          <RotateCcw className="h-4 w-4" /> Try Again
-        </Button>
+        <div className="mt-10">
+          <Button variant="outline" onClick={handleRestart} className="gap-2 h-12 px-8 rounded-2xl font-bold border-gray-200">
+            <RotateCcw className="h-4 w-4" /> Try Again
+          </Button>
+        </div>
       </motion.div>
     );
   }
@@ -84,36 +86,46 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
   const q = quiz[current];
 
   return (
-    <motion.div key={current} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="space-y-5">
+    <motion.div key={current} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="space-y-8">
       {/* Progress bar */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
-          <div className="h-full bg-primary/60 rounded-full transition-all duration-500" style={{ width: `${((current) / quiz.length) * 100}%` }} />
+      <div className="flex items-center gap-4">
+        <div className="flex-1 h-1.5 bg-gray-50 rounded-full overflow-hidden border">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${((current + 1) / quiz.length) * 100}%` }}
+            className="h-full bg-green-500 rounded-full transition-all duration-500" 
+          />
         </div>
-        <span className="text-xs font-bold text-muted-foreground shrink-0">{current + 1} / {quiz.length}</span>
-        <span className="text-xs font-bold text-primary shrink-0">Score: {score}</span>
+        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">{current + 1} / {quiz.length}</span>
       </div>
 
       {/* Question */}
-      <div className="glass-card rounded-2xl p-6">
-        <p className="font-display font-bold text-base text-foreground leading-relaxed">{q.question}</p>
+      <div className="py-2">
+        <h3 className="text-2xl font-black text-foreground uppercase tracking-tight italic leading-tight">{q.question}</h3>
       </div>
 
       {/* Options */}
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         {q.options.map((opt, i) => {
-          let variant = "bg-white/3 border-white/10 text-secondary-foreground hover:bg-white/8";
+          let variant = "bg-white border-gray-100 text-muted-foreground hover:bg-gray-50 hover:border-gray-200";
           if (selected !== null) {
-            if (i === q.answer) variant = "bg-green-500/10 border-green-500/40 text-foreground";
-            else if (i === selected && i !== q.answer) variant = "bg-red-500/10 border-red-500/40 text-foreground";
-            else variant = "bg-white/2 border-white/5 text-muted-foreground opacity-50";
+            if (i === q.answer) variant = "bg-green-50 border-green-200 text-green-700 shadow-sm";
+            else if (i === selected && i !== q.answer) variant = "bg-red-50 border-red-200 text-red-700 shadow-sm";
+            else variant = "bg-white border-gray-50 text-gray-300 opacity-60";
           }
           return (
-            <motion.button key={i} whileHover={selected === null ? { scale: 1.01 } : {}} onClick={() => handleSelect(i)} className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 ${variant}`}>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-bold text-sm border ${selected !== null && i === q.answer ? "bg-green-500/20 border-green-500/50 text-green-400" : selected !== null && i === selected ? "bg-red-500/20 border-red-500/50 text-red-400" : "bg-muted/30 border-white/10 text-muted-foreground"}`}>
-                {selected !== null ? (i === q.answer ? <Check className="h-4 w-4" /> : i === selected ? <X className="h-4 w-4" /> : String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)}
+            <motion.button 
+              key={i} 
+              whileHover={selected === null ? { x: 4 } : {}} 
+              onClick={() => handleSelect(i)} 
+              className={`w-full text-left flex items-center gap-5 p-5 rounded-3xl border transition-all duration-300 font-bold ${variant}`}
+            >
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-black text-sm border shadow-sm transition-colors ${selected !== null && i === q.answer ? "bg-green-600 border-green-600 text-white" : selected !== null && i === selected ? "bg-red-600 border-red-600 text-white" : "bg-white border-gray-100 text-gray-900"}`}>
+                {String.fromCharCode(65 + i)}
               </div>
-              <span className="text-sm leading-relaxed">{opt}</span>
+              <span className="text-base leading-relaxed">{opt}</span>
+              {selected !== null && i === q.answer && <Check className="h-5 w-5 ml-auto text-green-600" />}
+              {selected !== null && i === selected && i !== q.answer && <X className="h-5 w-5 ml-auto text-red-600" />}
             </motion.button>
           );
         })}
@@ -122,19 +134,22 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
       {/* Explanation */}
       <AnimatePresence>
         {selected !== null && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`glass-card rounded-xl p-4 border ${selected === q.answer ? "border-green-500/20 bg-green-500/5" : "border-orange-500/20 bg-orange-500/5"}`}>
-            <p className="text-sm leading-relaxed text-secondary-foreground">
-              <span className="font-bold text-foreground">💡 Explanation: </span>{q.explanation}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-6 rounded-3xl border ${selected === q.answer ? "border-green-100 bg-green-50/50" : "border-orange-100 bg-orange-50/50"}`}>
+            <p className="text-sm leading-relaxed text-gray-700">
+               <span className="text-[10px] font-black uppercase tracking-widest block mb-2 text-muted-foreground">Detailed Explanation</span>
+               {q.explanation}
             </p>
           </motion.div>
         )}
       </AnimatePresence>
 
       {selected !== null && (
-        <Button variant="hero" onClick={handleNext} className="w-full gap-2">
-          {current + 1 >= quiz.length ? "See Results" : "Next Question"}
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+        <div className="flex justify-end pt-4">
+          <Button variant="default" onClick={handleNext} className="gap-2 h-14 px-10 rounded-2xl font-black uppercase tracking-tight text-white bg-gray-900 hover:bg-black transition-all">
+            {current + 1 >= quiz.length ? "Finish Quiz" : "Next Challenge"}
+            <ArrowRight className="h-5 w-5" />
+          </Button>
+        </div>
       )}
     </motion.div>
   );

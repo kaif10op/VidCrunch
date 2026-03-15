@@ -1,4 +1,4 @@
-// @ts-nocheck
+// YouTube Summarizer Edge Function
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -14,9 +14,11 @@ interface SummaryRequest {
   provider?: string;
   language?: string;
   style?: string;
+  expertise?: string;
+  chatHistory?: { role: string; content: string }[];
 }
 
-async function fetchTranscript(videoId: string): Promise<{ transcript: string; textSegments: string[] }> {
+async function fetchTranscript(videoId: string, maxSeconds: number = 0): Promise<{ transcript: string; textSegments: string[] }> {
   const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const response = await fetch(pageUrl, {
     headers: {
@@ -30,13 +32,14 @@ async function fetchTranscript(videoId: string): Promise<{ transcript: string; t
   if (!captionMatch) {
     const descMatch = html.match(/"shortDescription":"(.*?)"/);
     if (descMatch) {
-      return { transcript: `Video description: ${descMatch[1].replace(/\\n/g, "\n").slice(0, 4000)}`, textSegments: [] };
+      return { transcript: `Video description fallback: ${descMatch[1].replace(/\\n/g, "\n").slice(0, 4000)}`, textSegments: [] };
     }
-    throw new Error("No captions or description available.");
+    throw new Error("No captions available.");
   }
 
   const captionTracks = JSON.parse(captionMatch[1]);
-  const track = captionTracks.find((t: any) => t.languageCode === "en") || captionTracks[0];
+  // Prioritize English, then any other
+  const track = captionTracks.find((t: { languageCode: string }) => t.languageCode === "en") || captionTracks[0];
   if (!track?.baseUrl) throw new Error("No caption URL found.");
 
   const captionUrl = track.baseUrl.replace(/\\u0026/g, "&");
@@ -48,6 +51,9 @@ async function fetchTranscript(videoId: string): Promise<{ transcript: string; t
   let match;
   while ((match = regex.exec(captionXml)) !== null) {
     const time = parseFloat(match[1]);
+    // Stop if we exceed duration (some transcripts have ghost data or are from combined tracks)
+    if (maxSeconds > 0 && time > maxSeconds + 5) break; 
+    
     const text = match[2]
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
@@ -128,7 +134,7 @@ function extractVideoInfo(html: string) {
   };
 }
 
-async function callAI(provider: string, model: string, messages: any[], apiKey: string) {
+async function callAI(provider: string, model: string, messages: { role: string; content: string }[], apiKey: string) {
   let url = "";
   if (provider === "groq") url = "https://api.groq.com/openai/v1/chat/completions";
   else if (provider === "openrouter") url = "https://openrouter.ai/api/v1/chat/completions";
@@ -177,7 +183,15 @@ serve(async (req: Request) => {
 
   try {
     const body: SummaryRequest = await req.json();
-    const { videoId, videoIds: rawVideoIds, provider = "groq", model = "llama-3.3-70b-versatile", language = "English", style = "Detailed" } = body;
+    const { 
+      videoId, 
+      videoIds: rawVideoIds, 
+      provider = "groq", 
+      model = "llama-3.3-70b-versatile", 
+      language = "English", 
+      style = "Detailed",
+      expertise = "Intermediate"
+    } = body;
 
     const videoIds: string[] = rawVideoIds && rawVideoIds.length > 0
       ? rawVideoIds.filter(Boolean).slice(0, 3)
@@ -186,11 +200,12 @@ serve(async (req: Request) => {
     if (videoIds.length === 0) throw new Error("videoId or videoId array is required");
 
     const envKey = `${provider.toUpperCase()}_API_KEY`;
+    // @ts-expect-error: Deno is available in Supabase Edge Functions
     const apiKey = Deno.env.get(envKey);
     if (!apiKey) throw new Error(`${envKey} is not configured on Supabase Dashboard`);
 
-    const videoDataArr: { videoInfo: any; transcript: string }[] = [];
-    let primaryVideoInfo: any = null;
+    const videoDataArr: { videoInfo: Record<string, unknown>; transcript: string }[] = [];
+    let primaryVideoInfo: Record<string, unknown> | null = null;
 
     for (const vid of videoIds) {
       const pageUrl = `https://www.youtube.com/watch?v=${vid}`;
@@ -198,12 +213,17 @@ serve(async (req: Request) => {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Accept-Language": "en-US,en;q=0.9" }
       });
       const html = await pageResp.text();
+      
+      // Get raw duration for filtering
+      const lengthMatch = html.match(/"lengthSeconds":"(\d+)"/);
+      const lengthSec = lengthMatch ? parseInt(lengthMatch[1]) : 0;
+      
       const videoInfo = extractVideoInfo(html);
       if (!primaryVideoInfo) primaryVideoInfo = videoInfo;
 
       let transcript: string;
       try {
-        const transcriptData = await fetchTranscript(vid);
+        const transcriptData = await fetchTranscript(vid, lengthSec);
         transcript = transcriptData.transcript;
       } catch {
         transcript = `[NO CAPTIONS — FALLBACK CONTEXT]\nTitle: ${videoInfo.title}\nChannel: ${videoInfo.channel}\nKeywords: ${videoInfo.keywords}\nDescription:\n${videoInfo.description.slice(0, 3000)}`;
@@ -219,6 +239,8 @@ serve(async (req: Request) => {
 
     const systemPrompt = `You are an expert educational AI assistant and YouTube video analyst. 
 ${isMultiVideo ? "You are given MULTIPLE videos. Synthesize them into one unified Master Guide, comparing and combining their insights." : ""}
+The target audience expertise level is: ${expertise}. Adjust the depth, terminology, and complexity level to match ${expertise}.
+${body.chatHistory ? `Previous Chat Messages for context:\n${JSON.stringify(body.chatHistory)}` : ""}
 Respond in ${language}. Style: ${style}.
 Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
 {
@@ -247,7 +269,13 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
     "nodes": [{"id": "1", "label": "Central Topic"}, {"id": "2", "label": "Sub-concept"}],
     "edges": [{"source": "1", "target": "2", "label": "relates to"}]
   },
-  "tags": ["tag1", "tag2"]
+  "tags": ["tag1", "tag2"],
+  "flashcards": [
+    {
+      "front": "A key concept or question",
+      "back": "The detailed explanation or answer"
+    }
+  ]
 }
 Rules:
 - Respond in ${language}. Generate very detailed content.`;
@@ -268,9 +296,9 @@ Rules:
       throw new Error(`Failed to parse AI JSON response.`);
     }
 
-    const allTranscripts = videoDataArr.map((vd, i) =>
-      `[Video ${i + 1}: ${vd.videoInfo.title}]\n${vd.transcript}`
-    ).join("\n\n---\n\n");
+    const allTranscripts = isMultiVideo 
+      ? videoDataArr.map((vd, i) => `[Video ${i + 1}: ${vd.videoInfo.title}]\n${vd.transcript}`).join("\n\n---\n\n")
+      : videoDataArr[0]?.transcript || "";
 
     return new Response(JSON.stringify({
       videoInfo: primaryVideoInfo,

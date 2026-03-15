@@ -1,4 +1,4 @@
-// @ts-nocheck
+// Video Tutor Edge Function
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -16,6 +16,7 @@ serve(async (req: Request) => {
         if (!transcript) throw new Error("transcript is required");
 
         const envKey = `${provider.toUpperCase()}_API_KEY`;
+        // @ts-expect-error: Deno is available in Supabase Edge Functions
         const apiKey = Deno.env.get(envKey);
         if (!apiKey) throw new Error(`${envKey} is not configured`);
 
@@ -31,7 +32,7 @@ If the question is not about the video, still help but note that it's a general 
 VIDEO TRANSCRIPT/CONTEXT:
 ${transcript.slice(0, 14000)}`
             },
-            ...history.map((h: any) => ({ role: h.role, content: h.content })),
+            ...history.map((h: { role: string; content: string }) => ({ role: h.role, content: h.content })),
             { role: "user", content: question }
         ];
 
