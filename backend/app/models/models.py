@@ -108,6 +108,7 @@ class Video(Base):
         String(30), nullable=False, default="pending"
     )  # pending, processing, ready, failed
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    progress_percentage: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -215,6 +216,7 @@ class Analysis(Base):
 
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    progress_percentage: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Relationships

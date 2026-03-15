@@ -37,6 +37,16 @@ class TranscriptResult:
 
 class TranscriptEngine:
     """Multi-stage transcript extraction with automatic fallback."""
+    
+    _whisper_model = None
+
+    @classmethod
+    def _get_whisper_model(cls):
+        if cls._whisper_model is None:
+            import whisper
+            logger.info("Loading Whisper 'base' model into memory...")
+            cls._whisper_model = whisper.load_model("base")
+        return cls._whisper_model
 
     async def extract(self, video_id: str) -> TranscriptResult:
         """Main entry: attempt all stages in order until one succeeds."""
@@ -182,9 +192,7 @@ class TranscriptEngine:
     async def _transcribe_with_whisper(self, audio_path: str) -> Optional[TranscriptResult]:
         """Run OpenAI Whisper on audio file."""
         try:
-            import whisper
-
-            model = whisper.load_model("base")
+            model = self._get_whisper_model()
             result = model.transcribe(
                 audio_path,
                 verbose=False,

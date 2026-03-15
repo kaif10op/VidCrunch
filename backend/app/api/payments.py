@@ -42,36 +42,48 @@ async def create_order(
 
     amount_paise, credits = PLANS[req.plan]
 
-    # Create Razorpay order
-    import razorpay
+    try:
+        # Create Razorpay order
+        import razorpay
 
-    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-    order = client.order.create({
-        "amount": amount_paise,
-        "currency": "INR",
-        "receipt": f"order_{user.id}_{req.plan}",
-        "notes": {"user_id": str(user.id), "plan": req.plan},
-    })
+        # Razorpay receipt ID must be <= 40 chars
+        receipt_id = f"rcpt_{str(user.id)[:8]}_{req.plan}"[:40]
+        
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        order_payload = {
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": receipt_id,
+            "notes": {"user_id": str(user.id), "plan": req.plan},
+        }
+        order = client.order.create(order_payload)
 
-    # Save payment record
-    payment = Payment(
-        user_id=user.id,
-        razorpay_order_id=order["id"],
-        amount_paise=amount_paise,
-        plan=req.plan,
-        credits_purchased=credits,
-        status="created",
-    )
-    db.add(payment)
+        # Save payment record
+        payment = Payment(
+            user_id=user.id,
+            razorpay_order_id=order["id"],
+            amount_paise=amount_paise,
+            plan=req.plan,
+            credits_purchased=credits,
+            status="created",
+        )
+        db.add(payment)
+        await db.commit()
 
-    return CreateOrderResponse(
-        order_id=order["id"],
-        amount=amount_paise,
-        currency="INR",
-        key_id=settings.RAZORPAY_KEY_ID,
-        plan=req.plan,
-        credits=credits,
-    )
+        return CreateOrderResponse(
+            order_id=order["id"],
+            amount=amount_paise,
+            currency="INR",
+            key_id=settings.RAZORPAY_KEY_ID,
+            plan=req.plan,
+            credits=credits,
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Razorpay order creation failed: {str(e)}")
+        # If it's a Razorpay-specific error, we might want to be more specific, 
+        # but for now, we'll log it and raise a 500 with a manageable message.
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
 
 
 @router.post("/verify", response_model=MessageResponse)

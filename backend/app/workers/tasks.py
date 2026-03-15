@@ -75,13 +75,7 @@ async def process_video_analysis(
     language: str,
 ):
     """
-    Full video analysis pipeline:
-      1. Extract metadata (yt-dlp)
-      2. Extract transcript (multi-stage)
-      3. Chunk transcript
-      4. Generate embeddings
-      5. AI synthesis
-      6. Store results
+    Full video analysis pipeline with parallelism and progress reporting.
     """
     async with async_session_factory() as db:
         try:
@@ -92,110 +86,125 @@ async def process_video_analysis(
                 return
 
             analysis.status = "processing"
+            analysis.progress_percentage = 5
             await db.commit()
 
-            all_transcripts = []
-            primary_metadata = None
+            import asyncio
 
-            for vid_id_str in video_ids:
-                vid_uuid = UUID(vid_id_str)
-                video = await _get_video(db, vid_uuid)
-                if not video:
-                    continue
+            # Internal helper for parallel video processing
+            async def process_single_video(vid_id_str: str):
+                async with async_session_factory() as vid_db:
+                    vid_uuid = UUID(vid_id_str)
+                    video = await _get_video(vid_db, vid_uuid)
+                    if not video:
+                        return None, None
 
-                # Step 1: Extract metadata
-                video.status = "processing"
-                await db.commit()
+                    video.status = "processing"
+                    video.progress_percentage = 10
+                    await vid_db.commit()
 
-                platform_id = video.platform_id
-                if not platform_id and video.url:
-                    import re
-                    match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", video.url or "")
-                    if match:
-                        platform_id = match.group(1)
+                    platform_id = video.platform_id
+                    if not platform_id and video.url:
+                        import re
+                        match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", video.url or "")
+                        if match:
+                            platform_id = match.group(1)
 
-                if not platform_id:
-                    video.status = "failed"
-                    video.error_message = "Could not extract video ID"
-                    await db.commit()
-                    continue
+                    if not platform_id:
+                        video.status = "failed"
+                        video.error_message = "Could not extract video ID"
+                        await vid_db.commit()
+                        return None, None
 
-                metadata = await extract_metadata(platform_id)
-                video.title = metadata.get("title", video.title)
-                video.channel = metadata.get("channel")
-                video.description = metadata.get("description")
-                video.duration_seconds = metadata.get("duration_seconds")
-                video.thumbnail_url = metadata.get("thumbnail_url")
-                video.view_count = metadata.get("view_count")
-                video.like_count = metadata.get("like_count")
-                video.language = metadata.get("language")
+                    # Step 1: Metadata
+                    try:
+                        metadata = await extract_metadata(platform_id)
+                        video.title = metadata.get("title", video.title)
+                        video.channel = metadata.get("channel")
+                        video.description = metadata.get("description")
+                        video.duration_seconds = metadata.get("duration_seconds")
+                        video.thumbnail_url = metadata.get("thumbnail_url")
+                        video.language = metadata.get("language")
+                        video.progress_percentage = 20
+                        await vid_db.commit()
+                    except Exception as e:
+                        logger.warning(f"Metadata extraction failed: {e}")
+                        metadata = {}
 
-                if not primary_metadata:
-                    primary_metadata = metadata
+                    # Step 2: Extract transcript
+                    try:
+                        transcript_result = await transcript_engine.extract(platform_id)
+                        video.progress_percentage = 50
+                        await vid_db.commit()
+                    except Exception as e:
+                        logger.error(f"Transcript extraction failed for {platform_id}: {e}")
+                        video.status = "failed"
+                        video.error_message = str(e)
+                        await vid_db.commit()
+                        return None, None
 
-                # Step 2: Extract transcript
-                try:
-                    transcript_result = await transcript_engine.extract(platform_id)
-                except Exception as e:
-                    logger.error(f"Transcript extraction failed for {platform_id}: {e}")
-                    video.status = "failed"
-                    video.error_message = str(e)
-                    await db.commit()
-                    continue
-
-                # Store transcript
-                transcript_record = Transcript(
-                    video_id=vid_uuid,
-                    full_text=transcript_result.full_text,
-                    language=transcript_result.language,
-                    source=transcript_result.source,
-                    word_count=transcript_result.word_count,
-                    timestamps_json=[
-                        {"start": s.start, "end": s.end, "text": s.text}
-                        for s in transcript_result.segments
-                    ],
-                )
-                db.add(transcript_record)
-
-                # Step 3: Chunk transcript
-                chunks = chunk_transcript(transcript_result.full_text)
-
-                # Step 4: Generate embeddings
-                chunk_texts = [c["text"] for c in chunks]
-                embeddings = await generate_embeddings(chunk_texts)
-
-                # Step 5: Store chunks with embeddings
-                for chunk_data, embedding in zip(chunks, embeddings):
-                    chunk_record = TranscriptChunk(
+                    # Store transcript
+                    transcript_record = Transcript(
                         video_id=vid_uuid,
-                        chunk_index=chunk_data["chunk_index"],
-                        text=chunk_data["text"],
-                        start_time=chunk_data.get("start_time"),
-                        end_time=chunk_data.get("end_time"),
-                        token_count=chunk_data.get("token_count"),
-                        embedding=embedding if any(e != 0.0 for e in embedding) else None,
+                        full_text=transcript_result.full_text,
+                        language=transcript_result.language,
+                        source=transcript_result.source,
+                        word_count=transcript_result.word_count,
+                        timestamps_json=[
+                            {"start": s.start, "end": s.end, "text": s.text}
+                            for s in transcript_result.segments
+                        ],
                     )
-                    db.add(chunk_record)
+                    vid_db.add(transcript_record)
 
-                video.status = "ready"
-                all_transcripts.append(
-                    f'[Video: "{video.title}"]\n{transcript_result.full_text}'
-                )
-                await db.commit()
+                    # Step 3: Chunk and Embed
+                    chunks = chunk_transcript(transcript_result.full_text)
+                    chunk_texts = [c["text"] for c in chunks]
+                    embeddings = await generate_embeddings(chunk_texts)
+
+                    for chunk_data, embedding in zip(chunks, embeddings):
+                        chunk_record = TranscriptChunk(
+                            video_id=vid_uuid,
+                            chunk_index=chunk_data["chunk_index"],
+                            text=chunk_data["text"],
+                            start_time=chunk_data.get("start_time"),
+                            end_time=chunk_data.get("end_time"),
+                            token_count=chunk_data.get("token_count"),
+                            embedding=embedding if any(e != 0.0 for e in embedding) else None,
+                        )
+                        vid_db.add(chunk_record)
+
+                    video.status = "ready"
+                    video.progress_percentage = 100
+                    await vid_db.commit()
+
+                    return f'[Video: "{video.title}"]\n{transcript_result.full_text}', metadata
+
+            # Process all videos in parallel
+            tasks = [process_single_video(vid_id) for vid_id in video_ids]
+            results = await asyncio.gather(*tasks)
+
+            all_transcripts = [r[0] for r in results if r[0]]
+            all_metadata = [r[1] for r in results if r[1]]
+            primary_metadata = all_metadata[0] if all_metadata else {}
 
             if not all_transcripts:
                 analysis.status = "failed"
                 analysis.error_message = "No transcripts could be extracted"
+                analysis.progress_percentage = 0
                 await db.commit()
                 return
 
             # Step 6: AI Synthesis
+            analysis.progress_percentage = 70
+            await db.commit()
+
             combined_transcript = "\n\n---\n\n".join(all_transcripts)
             is_multi = len(video_ids) > 1
 
             ai_result = await synthesize_content(
                 transcript_text=combined_transcript,
-                metadata=primary_metadata or {},
+                metadata=primary_metadata,
                 expertise=expertise,
                 style=style,
                 language=language,
@@ -214,9 +223,23 @@ async def process_video_analysis(
             analysis.learning_context = ai_result.get("learningContext")
             analysis.tags = ai_result.get("tags")
             analysis.status = "completed"
+            analysis.progress_percentage = 100
 
             await db.commit()
             logger.info(f"Analysis {analysis_id} completed successfully")
+
+        except Exception as e:
+            logger.error(f"Analysis {analysis_id} failed: {e}", exc_info=True)
+            try:
+                # Refresh analysis from db as its state might be stale
+                analysis = await _get_analysis(db, analysis_id)
+                if analysis:
+                    analysis.status = "failed"
+                    analysis.error_message = str(e)[:1000]
+                    analysis.progress_percentage = 0
+                    await db.commit()
+            except Exception:
+                pass
 
         except Exception as e:
             logger.error(f"Analysis {analysis_id} failed: {e}", exc_info=True)

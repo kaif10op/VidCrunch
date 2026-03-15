@@ -74,6 +74,7 @@ class VideoResponse(BaseModel):
     view_count: Optional[int] = None
     like_count: Optional[int] = None
     status: str
+    progress_percentage: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -112,6 +113,7 @@ class AnalysisResponse(BaseModel):
     tags: Optional[list] = None
     is_multi_video: bool = False
     status: str
+    progress_percentage: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}

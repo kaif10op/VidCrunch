@@ -114,6 +114,7 @@ const Index = () => {
   const [newName, setNewName] = useState("");
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
 
@@ -223,8 +224,17 @@ const Index = () => {
 
   const handlePayment = async (plan: string) => {
     try {
+      if (!(window as any).Razorpay) {
+        toast.error("Razorpay SDK not loaded. Please check your internet connection and refresh.");
+        return;
+      }
+
       const res = await paymentApi.createOrder({ plan });
-      if (!res.ok) throw new Error("Failed to create order");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: "Failed to create order" }));
+        throw new Error(errData.detail || "Failed to create order");
+      }
+      
       const order = await res.json();
 
       const options = {
@@ -235,17 +245,22 @@ const Index = () => {
         description: `Upgrade to ${plan.toUpperCase()}`,
         order_id: order.order_id,
         handler: async (response: any) => {
-          const verifyRes = await paymentApi.verify({
-            razorpay_order_id: order.order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          });
-          if (verifyRes.ok) {
-            toast.success("Payment successful! Credits added.");
-            setIsTopUpOpen(false);
-            fetchUserData(); // Refresh credits
-          } else {
-            toast.error("Payment verification failed.");
+          try {
+            const verifyRes = await paymentApi.verify({
+              razorpay_order_id: order.order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            if (verifyRes.ok) {
+              toast.success("Payment successful! Credits added.");
+              setIsTopUpOpen(false);
+              fetchUserData(); // Refresh credits
+            } else {
+              const verifyErr = await verifyRes.json().catch(() => ({ detail: "Verification failed" }));
+              toast.error(verifyErr.detail || "Payment verification failed.");
+            }
+          } catch (vErr) {
+            toast.error("An error occurred during verification.");
           }
         },
         prefill: {
@@ -255,11 +270,20 @@ const Index = () => {
         theme: {
           color: "#000000",
         },
+        modal: {
+          ondismiss: function() {
+            toast.info("Payment cancelled.");
+          }
+        }
       };
 
       const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        toast.error(`Payment failed: ${response.error.description}`);
+      });
       rzp.open();
     } catch (err: any) {
+      console.error("Payment initiation error:", err);
       toast.error(err.message || "Payment initiation failed");
     }
   };
@@ -388,10 +412,16 @@ const Index = () => {
         if (!statusRes.ok) continue;
         const statusData = await statusRes.json();
         
+        // Update progress state
+        if (statusData.progress_percentage !== undefined) {
+          setAnalysisProgress(statusData.progress_percentage);
+        }
+
         if (statusData.status === "completed") {
           const detailRes = await apiFetch(`/analysis/${analysisId}`);
           data = await detailRes.json();
           completed = true;
+          setAnalysisProgress(100);
         } else if (statusData.status === "failed") {
           throw new Error(statusData.error || "Analysis task failed");
         }
@@ -453,6 +483,7 @@ const Index = () => {
 
       setActiveAnalysisId(null);
       setAnalysisStatus(null);
+      setAnalysisProgress(0);
       setHistoryItems(await fetchHistory());
       return data;
     }
@@ -671,6 +702,7 @@ const Index = () => {
 
       <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
         <DialogContent className="rounded-[2.5rem] border-gray-100 shadow-2xl max-w-2xl p-0 overflow-hidden bg-white">
+          <DialogTitle className="sr-only">Top Up Credits</DialogTitle>
           <div className="grid grid-cols-1 md:grid-cols-2">
             <div className="p-8 md:p-10 bg-gray-50/50 border-r border-gray-100">
                <div className="flex items-center gap-2 mb-6 text-black">
@@ -842,19 +874,57 @@ const Index = () => {
                     iframeRef={iframeRef} 
                   />
                   
-                  {isLoading ? (
+                  {isLoading || (activeAnalysisId && !summaryData) ? (
                     <motion.div 
                       key="loading"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
                       className="py-12"
                     >
-                      <div className="mb-12">
-                        <div className="h-10 w-64 bg-gray-100 rounded-xl animate-pulse mb-4" />
-                        <div className="h-6 w-96 bg-gray-50 rounded-lg animate-pulse" />
+                      <div className="mb-12 bg-gray-50/50 border border-gray-100 p-8 rounded-[2.5rem] shadow-sm">
+                        <div className="flex items-end justify-between mb-8">
+                           <div>
+                             <h2 className="text-3xl font-black tracking-tighter uppercase italic mb-2">Analyzing Intelligence</h2>
+                             <div className="flex items-center gap-3">
+                               <div className="flex items-center gap-1.5">
+                                 <div className={cn("h-1.5 w-1.5 rounded-full animate-pulse", analysisProgress < 30 ? "bg-amber-500" : analysisProgress < 70 ? "bg-blue-500" : "bg-green-500")} />
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                   {analysisProgress < 20 ? "Extracting Metadata" : 
+                                    analysisProgress < 50 ? "Generating Transcript" : 
+                                    analysisProgress < 80 ? "AI Synthesis Pipeline" : 
+                                    "Polishing Results"}
+                                 </span>
+                               </div>
+                             </div>
+                           </div>
+                           <div className="text-right">
+                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-300 mb-1">Overall Progress</p>
+                             <span className="text-5xl font-black italic tracking-tightest leading-none text-black">{analysisProgress}%</span>
+                           </div>
+                        </div>
+                        
+                        <div className="relative h-4 w-full bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-inner">
+                           <motion.div 
+                             className="absolute inset-y-0 left-0 bg-black"
+                             initial={{ width: 0 }}
+                             animate={{ width: `${analysisProgress}%` }}
+                             transition={{ duration: 0.8, ease: "circOut" }}
+                           />
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-2 mt-4">
+                           {[25, 50, 75, 100].map((step) => (
+                             <div key={step} className={cn(
+                               "h-1 rounded-full transition-colors duration-500",
+                               analysisProgress >= step ? "bg-black" : "bg-gray-200"
+                             )} />
+                           ))}
+                        </div>
                       </div>
-                      <LoadingSkeleton />
+                      <div className="opacity-40 grayscale pointer-events-none">
+                        <LoadingSkeleton />
+                      </div>
                     </motion.div>
                   ) : summaryData ? (
                     <SummaryDisplay 
