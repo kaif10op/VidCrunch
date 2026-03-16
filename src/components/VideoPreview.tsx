@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, ThumbsUp, Calendar, Play, Pause } from "lucide-react";
+import { Eye, ThumbsUp, Play } from "lucide-react";
 import { useState } from "react";
 
 interface VideoPreviewProps {
@@ -20,13 +20,13 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="glass-card rounded-2xl overflow-hidden"
+      transition={{ duration: 0.5 }}
+      className="rounded-2xl overflow-hidden border border-gray-100"
     >
-      {/* Full-width video player */}
-      <div className={`relative w-full bg-black rounded-t-2xl overflow-hidden ${compact ? "aspect-video" : "aspect-video"}`}>
+      {/* Video player */}
+      <div className="relative w-full bg-black aspect-video">
         <AnimatePresence mode="wait">
           {isPlaying ? (
             <motion.div
@@ -59,14 +59,14 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
                 alt={title}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-2xl transform transition-all group-hover:scale-110 group-hover:bg-white/30 border border-white/30">
-                  <Play className="h-8 w-8 fill-current ml-1" />
+                <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-black shadow-xl transform transition-all group-hover:scale-110 border border-white" role="button" aria-label={`Play ${title}`}>
+                  <Play className="h-6 w-6 fill-current ml-1" />
                 </div>
               </div>
-              {duration && (
-                <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm text-white text-sm font-mono font-bold px-3 py-1.5 rounded-lg">
+              {duration && duration !== "N/A" && (
+                <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-md">
                   {duration}
                 </div>
               )}
@@ -75,42 +75,27 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
         </AnimatePresence>
       </div>
 
-      {/* Video metadata bar */}
-      {title && (
-        <div className="p-5 border-t border-white/5">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-display font-bold text-lg text-foreground leading-tight truncate">{title}</h3>
-              {channel && <p className="text-primary font-semibold text-sm mt-1">{channel}</p>}
-            </div>
-            <div className="flex items-center gap-3 text-muted-foreground text-xs shrink-0 flex-wrap">
-              {views && (
-                <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-full">
-                  <Eye className="h-3.5 w-3.5" />{views}
-                </span>
-              )}
-              {likes && likes !== "0" && (
-                <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-full">
-                  <ThumbsUp className="h-3.5 w-3.5" />{likes}
-                </span>
-              )}
-              {published && (
-                <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-full">
-                  <Calendar className="h-3.5 w-3.5" />{published}
-                </span>
-              )}
-              {isPlaying && (
-                <button
-                  onClick={() => setIsPlaying(false)}
-                  className="flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1.5 rounded-full font-semibold hover:bg-primary/20 transition-colors"
-                >
-                  <Pause className="h-3.5 w-3.5" /> Hide
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Video info bar */}
+      <div className="bg-white px-5 py-3 flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-foreground truncate">{title}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{channel}</p>
         </div>
-      )}
+        <div className="flex items-center gap-4 shrink-0 ml-4">
+          {views && views !== "N/A" && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Eye className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{views}</span>
+            </div>
+          )}
+          {likes && likes !== "N/A" && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <ThumbsUp className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{likes}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 };

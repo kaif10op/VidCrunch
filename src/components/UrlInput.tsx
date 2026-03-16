@@ -1,179 +1,338 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Search, Loader2, Languages, Cpu, Settings2, Sparkles, Plus, X, Youtube } from "lucide-react";
+import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  ArrowRight, 
+  Upload, 
+  Link as LinkIcon, 
+  Clipboard, 
+  Mic, 
+  Loader2,
+  StopCircle,
+  X
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { apiFetch, getAuthToken } from "@/lib/api";
 
 interface UrlInputProps {
-  onSubmit: (urls: string[], options: any) => void;
+  onSubmit: (urls: string[], options: Record<string, unknown>) => void;
   isLoading: boolean;
+  onUploadComplete?: (analysisId: string) => void;
+  analysisStyle?: string;
+  onStyleChange?: (style: string) => void;
 }
 
-const models = [
-  { provider: "groq", model: "llama-3.3-70b-versatile", label: "⚡ Llama 3.3 70B (Groq)" },
-  { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free", label: "🦙 Llama 3.3 (OpenRouter)" },
-  { provider: "google", model: "gemini-1.5-pro", label: "💎 Gemini 1.5 Pro" },
-  { provider: "xai", model: "grok-beta", label: "🧠 Grok Beta (xAI)" },
-  { provider: "cerebras", model: "llama3.1-70b", label: "🚀 Cerebras (Ultra Fast)" },
+const ANALYSIS_STYLES = [
+  { id: "", label: "Auto", desc: "AI chooses best style" },
+  { id: "Detailed", label: "Detailed", desc: "In-depth analysis" },
+  { id: "Academic Research", label: "Academic", desc: "Research-focused" },
+  { id: "Quick Summary", label: "Quick", desc: "Brief overview" },
+  { id: "Podcast Script", label: "Podcast", desc: "Conversational script" },
+  { id: "Study Guide", label: "Study Guide", desc: "Exam preparation" },
 ];
 
-const languages = [
-  "English", "Spanish", "French", "German", "Chinese", "Japanese",
-  "Hindi", "Arabic", "Portuguese", "Russian", "Korean", "Italian",
-  "Turkish", "Vietnamese", "Thai", "Indonesian", "Tamil", "Telugu", "Urdu"
-];
+const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", onStyleChange }: UrlInputProps) => {
+  const [url, setUrl] = useState("");
+  const [urls, setUrls] = useState<string[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-const styles = [
-  { value: "Detailed", label: "📖 Detailed Analysis" },
-  { value: "Concise", label: "⚡ Quick & Concise" },
-  { value: "Educational", label: "🎓 Educational Deep-Dive" },
-  { value: "Bullet Points", label: "📋 Structured Bullets" },
-];
-
-const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
-  const [urls, setUrls] = useState(["", "", ""]);
-  const [activeCount, setActiveCount] = useState(1);
-  const [model, setModel] = useState(models[0].model);
-  const [language, setLanguage] = useState("English");
-  const [style, setStyle] = useState("Detailed");
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
-    const validUrls = urls.slice(0, activeCount).filter(u => u.trim());
-    if (!validUrls.length) return;
+    if (url.trim() && !urls.includes(url.trim())) {
+      setUrls(prev => [...prev, url.trim()]);
+      setUrl("");
+    }
+  };
 
-    const selectedModelObj = models.find(m => m.model === model);
-    onSubmit(validUrls, {
-      provider: selectedModelObj?.provider,
-      model: selectedModelObj?.model,
-      language,
-      style
+  const removeUrl = (idx: number) => {
+    setUrls(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const allUrls = url.trim() ? [...urls, url.trim()] : urls;
+    if (allUrls.length === 0) return;
+    
+    onSubmit(allUrls, { 
+      provider: "groq", 
+      model: "llama-3.3-70b-versatile", 
+      language: "English", 
+      style: analysisStyle || (allUrls.length > 1 ? "Comparative Synthesis" : "Detailed")
     });
   };
 
-  const updateUrl = (i: number, val: string) => {
-    const next = [...urls];
-    next[i] = val;
-    setUrls(next);
+  const startRecording = () => {
+    setIsRecording(true);
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+    toast.info("Recording started... Speaking now will be captured.");
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+    toast.info("Voice recording is not yet available. Stay tuned!");
+    setRecordingTime(0);
+  };
+
+  const handleActionClick = async (title: string) => {
+    if (title === "Paste") {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          setUrl(text);
+          const match = text.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+          if (match && urls.length === 0 && !isLoading) {
+            onSubmit([text], { 
+              provider: "groq", 
+              model: "llama-3.3-70b-versatile", 
+              language: "English", 
+              style: analysisStyle || "Detailed" 
+            });
+          }
+        }
+      } catch (err) {
+        toast.error("Failed to read clipboard");
+      }
+    } else if (title === "Link") {
+      document.querySelector("input")?.focus();
+    } else if (title === "Upload") {
+      fileInputRef.current?.click();
+    } else if (title === "Record") {
+      if (isRecording) stopRecording();
+      else startRecording();
+    }
+  };
+
+  const actions = [
+    { title: "Upload", desc: isUploading ? "Uploading..." : "File, audio, video", icon: isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />, badge: isUploading ? undefined : "Popular", badgeColor: "bg-green-100 text-green-700" },
+    { title: "Link", desc: "YouTube, Website", icon: <LinkIcon className="h-5 w-5" />, active: true },
+    { title: "Paste", desc: "Copied Text", icon: <Clipboard className="h-5 w-5" /> },
+    { title: "Record", desc: isRecording ? "Stop Recording" : "Record Lecture", icon: isRecording ? <StopCircle className="h-5 w-5 text-red-500 animate-pulse" /> : <Mic className="h-5 w-5" /> }
+  ];
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-5">
-      <motion.form
-        onSubmit={handleSubmit}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.6 }}
-        className="space-y-3"
-      >
-        {Array.from({ length: activeCount }).map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="relative group"
-          >
-            {i === 0 && activeCount > 1 && (
-              <div className="absolute -left-5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest text-primary/60 w-4">1</div>
-            )}
-            {i > 0 && (
-              <div className="absolute -left-5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest text-purple-400/60 w-4">{i + 1}</div>
-            )}
-            <div className={`absolute -inset-1 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 ${i === 0 ? "bg-primary/20" : "bg-purple-500/15"}`} />
-            <div className="relative flex items-center glass-card rounded-2xl overflow-hidden border border-white/10">
-              <Youtube className={`ml-5 h-4 w-4 shrink-0 ${i === 0 ? "text-primary/60" : "text-purple-400/60"}`} />
-              <input
-                type="text"
-                value={urls[i]}
-                onChange={e => updateUrl(i, e.target.value)}
-                placeholder={i === 0 ? "Paste a YouTube URL to analyze..." : `Video ${i + 1} URL (optional)`}
-                className="flex-1 bg-transparent px-4 py-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none font-body text-base"
-              />
-              {i === 0 && i === activeCount - 1 && (
-                <Button type="submit" variant="hero" size="lg" disabled={isLoading || !urls[0].trim()} className="m-2 rounded-xl px-6 gap-2">
-                  {isLoading ? (<><Loader2 className="h-4 w-4 animate-spin" /><span className="hidden md:inline">Analyzing...</span></>) : (<><Sparkles className="h-4 w-4" /><span className="hidden md:inline">Analyze</span></>)}
-                </Button>
-              )}
-              {i > 0 && (
-                <button type="button" onClick={() => { setActiveCount(c => c - 1); updateUrl(i, ""); }} className="m-3 p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </motion.div>
-        ))}
+    <div className="w-full max-w-4xl mx-auto py-16 px-4">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        aria-label="Upload file"
+        accept="audio/*,video/*,.pdf,.txt,.md"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          if (!getAuthToken()) {
+            toast.error("Please sign in to upload files");
+            return;
+          }
+          setIsUploading(true);
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ""}/videos/upload`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${getAuthToken()}` },
+              body: formData,
+            });
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.detail || "Upload failed");
+            }
+            const data = await res.json();
+            toast.success(`Uploaded: ${file.name}`);
+            if (data.id) onUploadComplete?.(data.id);
+          } catch (err: any) {
+            toast.error(err.message || "Upload failed. Please try again.");
+          } finally {
+            setIsUploading(false);
+            e.target.value = "";
+          }
+        }}
+      />
 
-        {/* Bottom row: Add video + Submit (if multiple) */}
-        <div className="flex items-center gap-3">
-          {activeCount < 3 && (
-            <button type="button" onClick={() => setActiveCount(c => c + 1)} className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors py-1">
-              <Plus className="h-3.5 w-3.5" /> Add another video
-              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">Deep-Dive Mode</span>
-            </button>
-          )}
-          {activeCount > 1 && (
-            <Button type="submit" variant="hero" size="lg" disabled={isLoading || !urls[0].trim()} className="ml-auto rounded-xl px-6 gap-2">
-              {isLoading ? (<><Loader2 className="h-4 w-4 animate-spin" />Analyzing...</>) : (<><Sparkles className="h-4 w-4" />Synthesize {activeCount} Videos</>)}
-            </Button>
-          )}
-        </div>
-      </motion.form>
-
-      {/* Options row */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-3"
+        className="text-center mb-12"
       >
-        <div className="space-y-1.5">
-          <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/70 ml-1 flex items-center gap-1.5">
-            <Cpu className="h-3 w-3" /> AI Engine
-          </label>
-          <Select value={model} onValueChange={setModel}>
-            <SelectTrigger className="bg-background/30 backdrop-blur-md border-white/10 h-11 rounded-xl text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {models.map(m => <SelectItem key={m.model} value={m.model}>{m.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/70 ml-1 flex items-center gap-1.5">
-            <Languages className="h-3 w-3" /> Output Language
-          </label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger className="bg-background/30 backdrop-blur-md border-white/10 h-11 rounded-xl text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {languages.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/70 ml-1 flex items-center gap-1.5">
-            <Settings2 className="h-3 w-3" /> Analysis Mode
-          </label>
-          <Select value={style} onValueChange={setStyle}>
-            <SelectTrigger className="bg-background/30 backdrop-blur-md border-white/10 h-11 rounded-xl text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {styles.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">AI-Powered Learning</p>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-gradient-to-b from-gray-900 to-gray-500 bg-clip-text text-transparent">
+          What do you want to learn?
+        </h1>
+        <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
+          Paste a YouTube link and get instant summaries, flashcards, quizzes, and more.
+        </p>
       </motion.div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {actions.map((action, i) => (
+          <motion.button
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            onClick={() => handleActionClick(action.title)}
+            aria-label={action.title}
+            className={cn(
+              "p-6 rounded-3xl border text-left transition-all relative group h-32 flex flex-col justify-between",
+              (action.active || (action.title === "Record" && isRecording))
+                ? "bg-white border-gray-200 shadow-sm" 
+                : "bg-transparent border-transparent hover:bg-gray-50"
+            )}
+          >
+            {action.badge && (
+              <span className={cn(
+                "absolute top-4 right-4 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase",
+                action.badgeColor
+              )}>
+                {action.badge}
+              </span>
+            )}
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm border border-gray-100 bg-white",
+              (action.active || isRecording) ? "text-gray-900" : "text-gray-500 group-hover:text-gray-900"
+            )}>
+              {action.icon}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">
+                {action.title === "Record" && isRecording ? `Stop (${formatTime(recordingTime)})` : action.title}
+              </p>
+              <p className="text-xs text-muted-foreground">{action.desc}</p>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+
+      <div className="max-w-3xl mx-auto space-y-4">
+        <AnimatePresence>
+          {urls.length > 0 && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="flex flex-wrap gap-2 mb-4 overflow-hidden"
+            >
+              {urls.map((u, i) => (
+                <div key={i} className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full text-xs font-bold border border-gray-200">
+                  <LinkIcon className="h-3 w-3" />
+                  <span className="truncate max-w-[200px]">{u}</span>
+                  <button onClick={() => removeUrl(i)} className="hover:text-red-500 transition-colors">
+                     <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.form
+          onSubmit={handleSubmit}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="relative group w-full"
+        >
+          <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-gray-100 to-gray-50 blur opacity-0 group-focus-within:opacity-100 transition duration-1000" />
+          <div className="relative flex items-center bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm h-16 px-6 focus-within:border-gray-300 transition-all gap-3">
+            <input
+              type="text"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              aria-label="YouTube video URL"
+              onPaste={e => {
+                const text = e.clipboardData.getData('text');
+                const match = text.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+                if (match && urls.length === 0 && !isLoading) {
+                  setTimeout(() => {
+                    onSubmit([text], { 
+                      provider: "groq", 
+                      model: "llama-3.3-70b-versatile", 
+                      language: "English", 
+                      style: analysisStyle || "Detailed" 
+                    });
+                  }, 50);
+                }
+              }}
+              disabled={isLoading}
+              placeholder={urls.length > 0 ? "Add another video for synthesis..." : "Paste a YouTube link to start learning"}
+              className="flex-1 bg-transparent text-lg focus:outline-none placeholder:text-gray-400 font-medium"
+            />
+            
+            {url.trim() && (
+              <Button 
+                type="button"
+                variant="ghost" 
+                onClick={handleAdd}
+                className="h-10 px-4 rounded-xl font-bold text-xs uppercase bg-gray-50 hover:bg-gray-100 border border-gray-100"
+              >
+                Add
+              </Button>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading || (!url.trim() && urls.length === 0)}
+              aria-label="Analyze video"
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                (url.trim() || urls.length > 0) ? "bg-black text-white" : "bg-gray-100 text-gray-300"
+              )}
+            >
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <ArrowRight className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+        </motion.form>
+        
+        {urls.length > 1 && (
+          <p className="text-center text-xs font-medium text-green-600 animate-pulse">
+            Synthesis Mode: Comparative analysis of {urls.length + (url.trim() ? 1 : 0)} videos enabled
+          </p>
+        )}
+
+        {/* Analysis Style Selector */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="flex items-center gap-2 justify-center flex-wrap pt-2"
+        >
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Style:</span>
+          {ANALYSIS_STYLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onStyleChange?.(s.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                (analysisStyle || "") === s.id
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+              )}
+              title={s.desc}
+            >
+              {s.label}
+            </button>
+          ))}
+        </motion.div>
+      </div>
     </div>
   );
 };

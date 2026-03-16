@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Send, X, Loader2, Bot, User, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/lib/constants";
+import { getAuthToken } from "@/lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -15,9 +16,10 @@ interface ChatbotPanelProps {
   provider?: string;
   model?: string;
   videoTitle?: string;
+  videoId?: string;
 }
 
-const ChatbotPanel = ({ transcript, provider = "groq", model = "llama-3.3-70b-versatile", videoTitle }: ChatbotPanelProps) => {
+const ChatbotPanel = ({ transcript, provider = "groq", model = "llama-3.3-70b-versatile", videoTitle, videoId }: ChatbotPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -42,23 +44,42 @@ const ChatbotPanel = ({ transcript, provider = "groq", model = "llama-3.3-70b-ve
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("video-tutor", {
-        body: {
-          question: userMsg.content,
-          transcript,
-          history: messages.slice(-8), // Last 4 exchanges
-          provider,
-          model,
+      // Create a temporary video DB ID from the URL/content or use a prop
+      // For now we'll pass the video_id when available
+      const backendUrl = API_BASE_URL.replace(/\/api$/, "");
+      
+      const payload = {
+        message: userMsg.content,
+        provider,
+        model,
+      };
+
+      // In a real app we need the UUID of the video from our DB.
+      // If none provided, we may need a mock or generic chat route.
+      // Assuming parent passed a videoId (if not we'll handle gracefully)
+      const targetUrl = videoId ? `${backendUrl}/api/chat/${videoId}` : `${backendUrl}/api/chat/generic`;
+      
+      // We also need auth token, but for now we'll send a basic unauthenticated or mock req
+      const response = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken() || ''}`
         },
+        body: JSON.stringify(payload),
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
 
+      const data = await response.json();
       const aiMsg: Message = { role: "assistant", content: data.answer };
       setMessages(prev => [...prev, aiMsg]);
-    } catch (err: any) {
-      toast.error("Chat failed: " + (err.message || "Unknown error"));
+      
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Chat failed: " + errorMessage);
     } finally {
       setIsLoading(false);
     }
