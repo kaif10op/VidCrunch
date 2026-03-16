@@ -28,13 +28,15 @@ export interface MindMapData {
 export interface SummaryData {
   overview: string;
   keyPoints: string[];
+  key_points?: string[]; // Backend alias
   takeaways: string[];
   timestamps: { time: string; label: string }[];
   tags: string[];
   quiz?: QuizQuestion[];
   roadmap?: { title: string; steps: RoadmapStep[] };
   mind_map?: MindMapData;
-  flashcards?: { front: string; back: string }[];
+  flashcards?: { front: string; back: string; hint?: string }[];
+  podcast?: { audioUrl?: string; script?: string };
   transcript_segments?: { start: number; end: number; text: string }[];
   learning_context?: { why: string; whatToHowTo: string; bestWay: string };
 }

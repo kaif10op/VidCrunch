@@ -167,7 +167,7 @@ Respond in {language}. Style: {style}.
 Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
 {{
   "overview": "3-5 paragraphs of detailed analysis",
-  "keyPoints": ["10-15 detailed insight strings"],
+  "key_points": ["10-15 detailed insight strings"],
   "takeaways": ["6-10 actionable takeaway strings"],
   "timestamps": [
     {{
@@ -179,7 +179,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
     "title": "Mastery Roadmap",
     "steps": [{{"step": 1, "task": "Task name", "description": "Detailed description"}}]
   }},
-  "learningContext": {{
+  "learning_context": {{
     "why": "Why this topic matters",
     "whatToHowTo": "Step-by-step learning guidance",
     "bestWay": "Most effective approach"
@@ -192,7 +192,7 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
       "explanation": "Why this answer is correct"
     }}
   ],
-  "mindMap": {{
+  "mind_map": {{
     "nodes": [{{"id": "1", "label": "Central Topic"}}, {{"id": "2", "label": "Sub-concept"}}],
     "edges": [{{"source": "1", "target": "2", "label": "relates to"}}]
   }},
@@ -200,9 +200,14 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
   "flashcards": [
     {{
       "front": "Key concept or question",
-      "back": "Detailed explanation or answer"
+      "back": "Detailed explanation or answer",
+      "hint": "A subtle, non-giving-away hint to nudge the user's memory"
     }}
-  ]
+  ],
+  "podcast": {{
+    "script": "A high-fidelity dialogue script between two hosts (e.g., Alex and Taylor) discussing the video insights. Make it engaging and professional.",
+    "audioUrl": ""
+  }}
 }}
 
 Rules:
@@ -214,13 +219,11 @@ Rules:
 
 
 MINIMAL_SYSTEM_PROMPT_TEMPLATE = """You are a video analysis expert. 
-Create logical, descriptive chapter markers and a brief summary for the following transcript.
+Create logical, descriptive chapter markers for the following transcript.
 Respond in {language}.
 
 Return ONLY valid JSON with this EXACT structure:
 {{
-  "overview": "A 2-3 sentence high-level summary of the video.",
-  "keyPoints": ["3-5 main bullet points"],
   "timestamps": [
     {{
       "time": "0:00", 
@@ -240,6 +243,8 @@ async def synthesize_content(
     provider: str = None,
     model: str = None,
     minimal_mode: bool = False,
+    tools: Optional[list[str]] = None,
+    existing_data: Optional[str] = None,
 ) -> dict:
     """Generate structured learning content from a transcript using AI."""
     provider = provider or settings.DEFAULT_AI_PROVIDER
@@ -256,7 +261,6 @@ async def synthesize_content(
         system_prompt = MINIMAL_SYSTEM_PROMPT_TEMPLATE.format(
             language=language
         )
-        # For minimal mode, we should still handle foreign languages by translating to the requested language
         if language.lower() == "english":
             system_prompt += "\nIf the transcript is not in English, translate the summary and chapters into English."
     else:
@@ -266,6 +270,22 @@ async def synthesize_content(
             language=language,
             style=style,
         )
+
+    # Core tools that are always generated in initial analysis
+    CORE_TOOLS = ["timestamps"]
+    
+    # If no specific tools are requested and not in minimal mode, default to core tools
+    if not tools and not minimal_mode:
+        tools = CORE_TOOLS
+
+    if tools:
+        # Override for targeted generation
+        tool_instruction = f"\n\nCRITICAL: Generate ONLY the following JSON keys: {', '.join(tools)}. Skip all other keys."
+        system_prompt += tool_instruction
+
+    if existing_data:
+        context_instruction = f"\n\nEXISTING CONTENT DISCOVERY:\nThe following items already exist for these tools. Generate NEW, UNIQUE, and COMPLEMENTARY items that do not repeat the following:\n{existing_data}"
+        system_prompt += context_instruction
 
     # Truncate transcript to fit context window
     max_transcript_tokens = 12000

@@ -48,9 +48,10 @@ async def analyze_videos(
         # Check if video already exists
         if platform_id:
             result = await db.execute(
-                select(Video).where(
-                    Video.platform == platform, Video.platform_id == platform_id
-                )
+                select(Video)
+                .where(Video.platform == platform, Video.platform_id == platform_id)
+                .order_by(Video.created_at.desc())
+                .limit(1)
             )
             existing = result.scalar_one_or_none()
             if existing:

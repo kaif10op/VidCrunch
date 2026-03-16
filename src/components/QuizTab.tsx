@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, ChevronRight, Brain, RotateCcw, Trophy, ArrowRight } from "lucide-react";
+import { Check, X, ChevronRight, Brain, RotateCcw, Trophy, ArrowRight, Lightbulb, Baby, Footprints, HelpCircle, Send, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface QuizQuestion {
   question: string;
@@ -12,14 +13,16 @@ interface QuizQuestion {
 
 interface QuizTabProps {
   quiz: QuizQuestion[];
+  onAIAction?: (action: string, context: string) => void;
 }
 
-const QuizTab = ({ quiz }: QuizTabProps) => {
+const QuizTab = ({ quiz, onAIAction }: QuizTabProps) => {
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const [chatInput, setChatInput] = useState("");
 
   const handleSelect = (idx: number) => {
     if (selected !== null) return;
@@ -100,8 +103,36 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
       </div>
 
       {/* Question */}
-      <div className="py-2">
+      <div className="py-2 space-y-4">
         <h3 className="text-xl font-bold text-foreground leading-tight">{q.question}</h3>
+        
+        {/* AI Assistance Buttons */}
+        <div className="flex flex-wrap gap-2">
+           <Button 
+             variant="outline" 
+             size="sm" 
+             onClick={() => onAIAction?.('hint', q.question)}
+             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-indigo-100 bg-indigo-50/30 text-indigo-600 hover:bg-indigo-50"
+           >
+             <Lightbulb className="h-3 w-3" /> Hint
+           </Button>
+           <Button 
+             variant="outline" 
+             size="sm" 
+             onClick={() => onAIAction?.('explain', q.question)}
+             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-purple-100 bg-purple-50/30 text-purple-600 hover:bg-purple-50"
+           >
+             <Baby className="h-3 w-3" /> Explain like I'm 5
+           </Button>
+           <Button 
+             variant="outline" 
+             size="sm" 
+             onClick={() => onAIAction?.('walkthrough', q.question)}
+             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-emerald-100 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50"
+           >
+             <Footprints className="h-3 w-3" /> Walk me through it
+           </Button>
+        </div>
       </div>
 
       {/* Options */}
@@ -132,6 +163,15 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
             </motion.button>
           );
         })}
+        
+        {selected === null && (
+          <button 
+            onClick={() => setSelected(-1)}
+            className="w-full text-center py-4 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors border border-dashed border-gray-100 rounded-2xl"
+          >
+            I don't know the answer
+          </button>
+        )}
       </div>
 
       {/* Explanation */}
@@ -154,6 +194,38 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
           </Button>
         </div>
       )}
+
+      {/* Integrated Chat for Quiz */}
+      <div className="mt-8 pt-6 border-t border-gray-50">
+        <div className="relative group">
+          <textarea 
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (chatInput.trim()) {
+                  onAIAction?.('custom', chatInput.trim());
+                  setChatInput("");
+                }
+              }
+            }}
+            placeholder="Ask about this question..."
+            className="w-full h-12 bg-gray-50/50 border border-gray-100 rounded-2xl pl-5 pr-14 py-3.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-gray-200 focus:ring-4 focus:ring-black/5 transition-all scrollbar-none resize-none"
+          />
+          <button 
+            onClick={() => {
+              if (chatInput.trim()) {
+                onAIAction?.('custom', chatInput.trim());
+                setChatInput("");
+              }
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black text-white rounded-xl shadow-lg shadow-black/10 hover:scale-105 transition-all"
+          >
+            <Send className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 };

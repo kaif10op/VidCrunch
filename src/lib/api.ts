@@ -105,10 +105,14 @@ export const analysisApi = {
   get: (id: string) => apiFetch(`/analysis/${id}`),
   delete: (analysisId: string) => apiFetch(`/analysis/${analysisId}`, { method: "DELETE" }),
   getStatus: (analysisId: string) => apiFetch(`/analysis/${analysisId}/status`),
-  generateTool: (analysisId: string, toolType: string) =>
-    apiFetch(`/analysis/${analysisId}/generate?tool_type=${toolType}`, { method: "POST" }),
+  generateTool: (analysisId: string, toolType: string, append: boolean = false) =>
+    apiFetch(`/analysis/${analysisId}/generate?tool_type=${toolType}${append ? '&append=true' : ''}`, { method: "POST" }),
 };
 
 export const searchApi = {
   query: (q: string) => apiFetch(`/search/?q=${encodeURIComponent(q)}`),
+};
+
+export const feedbackApi = {
+  submit: (content: string) => apiFetch("/feedback", { method: "POST", body: JSON.stringify({ content }) }),
 };

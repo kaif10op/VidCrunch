@@ -126,6 +126,7 @@ class AnalysisResponse(BaseModel):
     quiz: Optional[list] = None
     mind_map: Optional[dict] = None
     flashcards: Optional[list] = None
+    podcast: Optional[dict] = None
     learning_context: Optional[dict] = None
     tags: Optional[list] = None
     transcript_segments: Optional[list] = None
@@ -153,6 +154,7 @@ class AnalysisDetailResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     context_snippet: Optional[str] = None
+    tool_id: Optional[str] = None
 
 
 class ChatMessageResponse(BaseModel):

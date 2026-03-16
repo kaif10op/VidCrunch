@@ -321,19 +321,17 @@ async def process_video_analysis(
                 minimal_mode=not full_analysis,
             )
 
-            # Store analysis results (Basics are always included now)
+            # Store core analysis results
             analysis.overview = ai_result.get("overview")
-            analysis.key_points = ai_result.get("keyPoints")
+            analysis.key_points = ai_result.get("key_points")
+            analysis.takeaways = ai_result.get("takeaways")
             analysis.timestamps = ai_result.get("timestamps")
-
-            if full_analysis:
-                analysis.takeaways = ai_result.get("takeaways")
-                analysis.roadmap = ai_result.get("roadmap")
-                analysis.quiz = ai_result.get("quiz")
-                analysis.mind_map = ai_result.get("mindMap")
-                analysis.flashcards = ai_result.get("flashcards")
-                analysis.learning_context = ai_result.get("learningContext")
-                analysis.tags = ai_result.get("tags")
+            analysis.learning_context = ai_result.get("learning_context")
+            analysis.tags = ai_result.get("tags")
+            
+            # Specialized tools (quiz, roadmap, mind_map, flashcards, podcast) 
+            # are generated on-demand via the generate_tool endpoint.
+            
             analysis.status = "completed"
             analysis.progress_percentage = 100
             analysis.estimated_remaining_seconds = 0
@@ -417,18 +415,18 @@ async def process_upload(
                 metadata={"title": video.title, "channel": "Uploaded Video"},
             )
 
+            # Store core analysis results
             analysis.overview = ai_result.get("overview")
-            analysis.key_points = ai_result.get("keyPoints")
+            analysis.key_points = ai_result.get("key_points")
             analysis.takeaways = ai_result.get("takeaways")
             analysis.timestamps = ai_result.get("timestamps")
-            analysis.roadmap = ai_result.get("roadmap")
-            analysis.quiz = ai_result.get("quiz")
-            analysis.mind_map = ai_result.get("mindMap")
-            analysis.flashcards = ai_result.get("flashcards")
-            analysis.learning_context = ai_result.get("learningContext")
+            analysis.learning_context = ai_result.get("learning_context")
             analysis.tags = ai_result.get("tags")
+            
+            # Note: specialized tools (roadmap, quiz, mind_map, flashcards, podcast) 
+            # are NOT populated here. They are generated on-demand via the generate_tool endpoint.
+            
             analysis.status = "completed"
-
             await db.commit()
             logger.info(f"Upload processing for video {video_id} completed")
 

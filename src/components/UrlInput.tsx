@@ -126,7 +126,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4">
+    <div className="w-full max-w-5xl mx-auto px-6">
       {/* Action Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         {actions.map((action, i) => (
@@ -166,7 +166,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
         ))}
       </div>
 
-      <div className="max-w-3xl mx-auto space-y-4">
+      <div className="max-w-5xl mx-auto space-y-4">
         {urls.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {urls.map((u, i) => (

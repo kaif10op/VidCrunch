@@ -336,51 +336,45 @@ class TranscriptEngine:
 
                 if not actual_audio:
                     return None
+                # Use Official Google SDK for reliable file upload and transcription
+                import google.generativeai as genai
+                genai.configure(api_key=settings.GOOGLE_AI_KEY)
 
-                async with httpx.AsyncClient() as client:
-                    # 1. Upload to Files API
-                    upload_url = f"https://generativelanguage.googleapis.com/upload/v1beta/files?key={settings.GOOGLE_AI_KEY}"
-                    with open(actual_audio, "rb") as f:
-                        resp = await client.post(
-                            upload_url,
-                            headers={
-                                "X-Goog-Upload-Protocol": "multipart",
-                            },
-                            files={"file": (os.path.basename(actual_audio), f, "audio/mpeg")},
-                            timeout=120.0,
-                        )
+                # 1. Upload to Files API
+                print(f"DEBUG [{video_id}]: Uploading to Gemini Files API...", flush=True)
+                
+                # SDK doesn't support async upload yet, so run in thread
+                import asyncio
+                def _upload_file():
+                    return genai.upload_file(path=actual_audio, mime_type="audio/mpeg")
+                
+                try:
+                    uploaded_file = await asyncio.to_thread(_upload_file)
+                    print(f"DEBUG [{video_id}]: Gemini Upload success: {uploaded_file.uri}", flush=True)
+                except Exception as e:
+                    print(f"DEBUG [{video_id}]: Gemini Upload failed: {e}", flush=True)
+                    return None
 
-                    if resp.status_code != 200:
-                        print(f"DEBUG [{video_id}]: Gemini Upload failed: {resp.status_code} - {resp.text}", flush=True)
-                        return None
-
-                    file_data = resp.json()
-                    file_uri = file_data.get("file", {}).get("uri")
-                    if not file_uri:
-                        return None
-
-                    # 2. Generate content with structured output
-                    gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GOOGLE_AI_KEY}"
-                    body = {
-                        "contents": [{
-                            "parts": [
-                                {"file_data": {"file_uri": file_uri, "mime_type": "audio/mpeg"}},
-                                {"text": "Transcribe this audio file. Return the transcription as a list of objects with 'start' (seconds as float), 'end' (seconds as float), and 'text' fields. Provide accurate timestamps for every sentence."}
-                            ]
-                        }],
-                        "generationConfig": {
-                            "response_mime_type": "application/json",
-                            "response_schema": {
-                                "type": "OBJECT",
+                # 2. Generate content with structured output
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                prompt = "Transcribe this audio file. Return the transcription as a list of objects with 'start' (seconds as float), 'end' (seconds as float), and 'text' fields. Provide accurate timestamps for every sentence."
+                
+                def _generate():
+                    return model.generate_content(
+                        [uploaded_file, prompt],
+                        generation_config=genai.GenerationConfig(
+                            response_mime_type="application/json",
+                            response_schema={
+                                "type": "object",
                                 "properties": {
                                     "transcription": {
-                                        "type": "ARRAY",
+                                        "type": "array",
                                         "items": {
-                                            "type": "OBJECT",
+                                            "type": "object",
                                             "properties": {
-                                                "start": {"type": "NUMBER"},
-                                                "end": {"type": "NUMBER"},
-                                                "text": {"type": "STRING"}
+                                                "start": {"type": "number"},
+                                                "end": {"type": "number"},
+                                                "text": {"type": "string"}
                                             },
                                             "required": ["start", "end", "text"]
                                         }
@@ -388,42 +382,40 @@ class TranscriptEngine:
                                 },
                                 "required": ["transcription"]
                             }
-                        }
-                    }
-
-                    resp = await client.post(gen_url, json=body, timeout=120.0)
-                    if resp.status_code != 200:
-                        print(f"DEBUG [{video_id}]: Gemini GenerateContent failed: {resp.status_code} - {resp.text}", flush=True)
-                        return None
-
-                    result_data = resp.json()
-                    candidates = result_data.get("candidates", [])
-                    if not candidates:
-                        return None
-
-                    content_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
-                    try:
-                        transcription_json = json.loads(content_text)
-                        segments_data = transcription_json.get("transcription", [])
-                        
-                        segments = []
-                        for s in segments_data:
-                            segments.append(TranscriptSegment(
-                                start=float(s.get("start", 0)),
-                                end=float(s.get("end", 0)),
-                                text=s.get("text", "").strip(),
-                            ))
-
-                        full_text = self._segments_to_timestamped_text(segments)
-                        return TranscriptResult(
-                            full_text=full_text,
-                            segments=segments,
-                            language="en",
-                            word_count=len(full_text.split()),
                         )
-                    except Exception as e:
-                        print(f"DEBUG [{video_id}]: Gemini JSON parse failed: {e}", flush=True)
-                        return None
+                    )
+
+                try:
+                    response = await asyncio.to_thread(_generate)
+                    result_data = json.loads(response.text)
+                    segments_data = result_data.get("transcription", [])
+                    
+                    segments = []
+                    for s in segments_data:
+                        segments.append(TranscriptSegment(
+                            start=float(s.get("start", 0)),
+                            end=float(s.get("end", 0)),
+                            text=s.get("text", "").strip(),
+                        ))
+
+                    full_text = self._segments_to_timestamped_text(segments)
+                    return TranscriptResult(
+                        full_text=full_text,
+                        segments=segments,
+                        language="en",
+                        word_count=len(full_text.split()),
+                    )
+                except Exception as e:
+                    print(f"DEBUG [{video_id}]: Gemini GenerateContent/Parse failed: {e}", flush=True)
+                    return None
+                finally:
+                    # Clean up file from Google Cloud (optional but good practice)
+                    try:
+                        def _delete_file():
+                            genai.delete_file(uploaded_file.name)
+                        await asyncio.to_thread(_delete_file)
+                    except:
+                        pass
 
         except Exception as e:
             logger.warning(f"Gemini Cloud transcription failed: {e}")
@@ -744,6 +736,19 @@ async def extract_metadata(video_id: str) -> dict:
             return {"title": "Unknown", "channel": "Unknown"}
 
         data = json.loads(proc.stdout)
+        # Parse upload_date (YYYYMMDD) into datetime
+        published_at = None
+        upload_date = data.get("upload_date")
+        if upload_date and len(upload_date) == 8:
+            try:
+                from datetime import datetime
+                published_at = datetime.strptime(upload_date, "%Y%m%d")
+            except Exception as e:
+                logger.warning(f"Failed to parse upload_date {upload_date}: {e}")
+                pass
+        
+        logger.info(f"DEBUG: published_at type={type(published_at)}, value={published_at}")
+
         return {
             "title": data.get("title", "Unknown"),
             "channel": data.get("uploader", data.get("channel", "Unknown")),
@@ -752,7 +757,7 @@ async def extract_metadata(video_id: str) -> dict:
             "view_count": data.get("view_count", 0),
             "like_count": data.get("like_count", 0),
             "thumbnail_url": data.get("thumbnail", ""),
-            "published_at": data.get("upload_date", ""),
+            "published_at": published_at,
             "language": data.get("language", "en"),
         }
     except Exception as e:

@@ -1,6 +1,7 @@
 """Analysis API routes — get analysis results, list history."""
 
 from uuid import UUID
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -140,7 +141,8 @@ async def delete_analysis(
 @router.post("/{analysis_id}/generate", response_model=AnalysisResponse)
 async def generate_tool(
     analysis_id: UUID,
-    tool_type: str = Query(..., pattern="^(quiz|roadmap|mind_map|flashcards|takeaways|learning_context)$"),
+    tool_type: str = Query(..., pattern="^(overview|key_points|tags|quiz|roadmap|mind_map|flashcards|takeaways|learning_context|podcast)$"),
+    append: bool = Query(False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -152,9 +154,16 @@ async def generate_tool(
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # If tool already exists, just return it (or we could force re-generation)
-    if getattr(analysis, tool_type) is not None:
+    # If tool already exists and not appending, just return it
+    existing_value = getattr(analysis, tool_type)
+    if existing_value is not None and not append:
         return AnalysisResponse.model_validate(analysis)
+
+    existing_context = None
+    if append and existing_value:
+        if isinstance(existing_value, list):
+            # For lists like quiz/flashcards, provide context to avoid duplicates
+            existing_context = json.dumps(existing_value[:20]) # Limit context size
 
     # Need transcript
     from app.models.models import Transcript
@@ -173,25 +182,37 @@ async def generate_tool(
         "channel": video.channel if video else "Unknown"
     }
 
-    # Call synthesis for just this tool
-    # We can refine synthesize_content to accept a specific tool list, 
-    # but for now we'll just run a slightly targeted synthesis.
+    # Call targeted synthesis for ONLY this tool
     ai_result = await synthesize_content(
         transcript_text=transcript.full_text,
         metadata=metadata,
         expertise=analysis.expertise_level,
         style=analysis.style,
-        minimal_mode=False, # We want full detail for tools
+        minimal_mode=False,
+        tools=[tool_type],
+        existing_data=existing_context,
     )
 
     # Update analysis with the new tool
     if tool_type in ai_result:
-        setattr(analysis, tool_type, ai_result[tool_type])
+        new_value = ai_result[tool_type]
+        if append and existing_value is not None:
+            if isinstance(existing_value, list) and isinstance(new_value, list):
+                # Append to existing list
+                setattr(analysis, tool_type, existing_value + new_value)
+            elif isinstance(existing_value, dict) and isinstance(new_value, dict):
+                # Merge dicts (less common but supported)
+                setattr(analysis, tool_type, {**existing_value, **new_value})
+            else:
+                setattr(analysis, tool_type, new_value)
+        else:
+            setattr(analysis, tool_type, new_value)
+            
         await db.commit()
         await db.refresh(analysis)
     else:
-        # If the requested tool wasn't in the generic synthesis (unlikely if prompt is followed)
-        raise HTTPException(status_code=500, detail=f"Failed to generate {tool_type}")
+        # If the requested tool wasn't in the targeted synthesis
+        raise HTTPException(status_code=500, detail=f"Failed to generate {tool_type}. AI returned: {list(ai_result.keys())}")
 
     return AnalysisResponse.model_validate(analysis)
 

@@ -22,6 +22,8 @@ passlib[bcrypt]>=1.7.4
 # AI & ML
 openai>=1.30.0
 tiktoken>=0.7.0
+groq>=0.9.0
+google-generativeai>=0.7.0
 
 # Video Processing
 yt-dlp>=2024.0.0
