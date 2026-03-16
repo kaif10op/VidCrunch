@@ -89,15 +89,17 @@ const MindMapTab = ({ mindMap }: MindMapTabProps) => {
   if (!mindMap?.nodes?.length) {
     return (
       <div className="text-center py-16 text-muted-foreground">
-        <Map className="h-12 w-12 mx-auto mb-4 opacity-30" />
-        <p className="font-semibold">Mind map not generated</p>
-        <p className="text-xs mt-1">Try using "Educational Deep-Dive" mode for a visual mind map.</p>
+        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-100">
+          <Map className="h-6 w-6 text-gray-300" />
+        </div>
+        <p className="text-sm font-semibold text-foreground">Mind map not generated</p>
+        <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">Try using "Educational Deep-Dive" mode for a visual mind map.</p>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden border border-gray-100 shadow-sm" style={{ height: "600px", background: "#ffffff" }}>
+    <div className="relative w-full rounded-3xl overflow-hidden border border-gray-100 shadow-sm" style={{ height: "min(600px, 70vh)", background: "#ffffff" }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

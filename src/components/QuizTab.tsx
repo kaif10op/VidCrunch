@@ -64,15 +64,15 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl p-10 text-center border shadow-sm border-gray-100">
         <Trophy className={`h-16 w-16 mx-auto ${pct >= 70 ? "text-yellow-400" : "text-gray-300"}`} />
         <div className="space-y-4">
-          <h3 className="text-3xl font-black text-foreground uppercase tracking-tight italic">
+          <h3 className="text-2xl font-bold text-foreground mt-4">
             {pct >= 90 ? "Outstanding!" : pct >= 70 ? "Well Done!" : "Keep Learning!"}
           </h3>
-          <p className="text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Score Achieved</p>
-          <div className="text-7xl font-black text-foreground my-6">{score}<span className="text-2xl text-muted-foreground font-medium">/{quiz.length}</span></div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Score Achieved</p>
+          <div className="text-6xl font-bold text-foreground my-6">{score}<span className="text-2xl text-muted-foreground font-medium">/{quiz.length}</span></div>
           <div className="w-full h-3 bg-gray-50 rounded-full overflow-hidden border">
             <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, ease: "easeOut" }} className={`h-full rounded-full ${pct >= 70 ? "bg-green-500" : "bg-orange-500"}`} />
           </div>
-          <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">{pct}% accuracy</p>
+          <p className="text-xs font-medium text-muted-foreground">{pct}% accuracy</p>
         </div>
         <div className="mt-10">
           <Button variant="outline" onClick={handleRestart} className="gap-2 h-12 px-8 rounded-2xl font-bold border-gray-200">
@@ -96,16 +96,16 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
             className="h-full bg-green-500 rounded-full transition-all duration-500" 
           />
         </div>
-        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">{current + 1} / {quiz.length}</span>
+        <span className="text-[10px] font-medium text-muted-foreground shrink-0">{current + 1} / {quiz.length}</span>
       </div>
 
       {/* Question */}
       <div className="py-2">
-        <h3 className="text-2xl font-black text-foreground uppercase tracking-tight italic leading-tight">{q.question}</h3>
+        <h3 className="text-xl font-bold text-foreground leading-tight">{q.question}</h3>
       </div>
 
       {/* Options */}
-      <div className="grid gap-4">
+      <div className="grid gap-4" role="radiogroup" aria-label="Quiz options">
         {q.options.map((opt, i) => {
           let variant = "bg-white border-gray-100 text-muted-foreground hover:bg-gray-50 hover:border-gray-200";
           if (selected !== null) {
@@ -118,9 +118,12 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
               key={i} 
               whileHover={selected === null ? { x: 4 } : {}} 
               onClick={() => handleSelect(i)} 
+              role="radio"
+              aria-checked={selected === i}
+              aria-label={`Option ${String.fromCharCode(65 + i)}: ${opt}`}
               className={`w-full text-left flex items-center gap-5 p-5 rounded-3xl border transition-all duration-300 font-bold ${variant}`}
             >
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-black text-sm border shadow-sm transition-colors ${selected !== null && i === q.answer ? "bg-green-600 border-green-600 text-white" : selected !== null && i === selected ? "bg-red-600 border-red-600 text-white" : "bg-white border-gray-100 text-gray-900"}`}>
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold text-sm border shadow-sm transition-colors ${selected !== null && i === q.answer ? "bg-green-600 border-green-600 text-white" : selected !== null && i === selected ? "bg-red-600 border-red-600 text-white" : "bg-white border-gray-100 text-gray-900"}`}>
                 {String.fromCharCode(65 + i)}
               </div>
               <span className="text-base leading-relaxed">{opt}</span>
@@ -136,7 +139,7 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
         {selected !== null && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-6 rounded-3xl border ${selected === q.answer ? "border-green-100 bg-green-50/50" : "border-orange-100 bg-orange-50/50"}`}>
             <p className="text-sm leading-relaxed text-gray-700">
-               <span className="text-[10px] font-black uppercase tracking-widest block mb-2 text-muted-foreground">Detailed Explanation</span>
+               <span className="text-[10px] font-semibold uppercase tracking-wider block mb-2 text-muted-foreground">Detailed Explanation</span>
                {q.explanation}
             </p>
           </motion.div>
@@ -145,7 +148,7 @@ const QuizTab = ({ quiz }: QuizTabProps) => {
 
       {selected !== null && (
         <div className="flex justify-end pt-4">
-          <Button variant="default" onClick={handleNext} className="gap-2 h-14 px-10 rounded-2xl font-black uppercase tracking-tight text-white bg-gray-900 hover:bg-black transition-all">
+          <Button variant="default" onClick={handleNext} className="gap-2 h-14 px-10 rounded-2xl font-semibold text-white bg-gray-900 hover:bg-black transition-all">
             {current + 1 >= quiz.length ? "Finish Quiz" : "Next Challenge"}
             <ArrowRight className="h-5 w-5" />
           </Button>

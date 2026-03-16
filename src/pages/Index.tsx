@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, 
@@ -20,7 +20,12 @@ import {
   ExternalLink,
   ChevronRight,
   Coins,
-  Play
+  Play,
+  MoreHorizontal,
+  Menu,
+  FileDown,
+  Upload,
+  GraduationCap
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import LearnTools from "@/components/LearnTools";
@@ -69,27 +74,18 @@ import {
   authApi,
   creditApi,
   paymentApi,
+  exportApi,
+  chatApi,
   removeAuthToken 
 } from "@/lib/api";
-
-const extractVideoId = (url: string): string | null => {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
-    /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
-  ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
-};
+import { extractVideoId, POLL_INTERVAL_MS, POLL_MAX_ATTEMPTS, MAX_RECENTS_SHOWN, MAX_CHAT_HISTORY_CONTEXT, STORAGE_KEYS, API_BASE_URL } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 const Index = () => {
   const [activeView, setActiveView] = useState<"dashboard" | "analysis" | "history" | "library" | "space" | "settings">("dashboard");
   const [expertise, setExpertise] = useState<"Beginner" | "Intermediate" | "Expert">("Intermediate");
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // ... existing states
@@ -120,10 +116,13 @@ const Index = () => {
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [isVideoMinimized, setIsVideoMinimized] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [isMobileLearnOpen, setIsMobileLearnOpen] = useState(false);
+  const [analysisStyle, setAnalysisStyle] = useState<string>("");
 
   // User & Auth State
   const [user, setUser] = useState<any>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [deleteSpaceConfirmId, setDeleteSpaceConfirmId] = useState<string | null>(null);
 
   const fetchTransactions = async () => {
     try {
@@ -132,7 +131,7 @@ const Index = () => {
         setTransactions(await res.json());
       }
     } catch (err) {
-      console.error("Failed to fetch transactions:", err);
+      logger.error("Failed to fetch transactions:", err);
     }
   };
 
@@ -152,18 +151,18 @@ const Index = () => {
       if (userRes.ok) {
         const userData = await userRes.json();
         setUser(userData);
-        localStorage.setItem('user_name', userData.name || '');
-        localStorage.setItem('user_email', userData.email || '');
+        localStorage.setItem(STORAGE_KEYS.USER_NAME, userData.name || '');
+        localStorage.setItem(STORAGE_KEYS.USER_EMAIL, userData.email || '');
       }
       
       if (creditRes.ok) {
         const creditData = await creditRes.json();
         setCredits(creditData.balance);
-        localStorage.setItem('user_balance', String(creditData.balance));
+        localStorage.setItem(STORAGE_KEYS.USER_BALANCE, String(creditData.balance));
       }
       fetchTransactions();
     } catch (err) {
-      console.error("Auth sync failed", err);
+      logger.error("Auth sync failed", err);
     }
   };
 
@@ -171,9 +170,9 @@ const Index = () => {
     removeAuthToken();
     setUser(null);
     setCredits(null);
-    localStorage.removeItem('user_name');
-    localStorage.removeItem('user_email');
-    localStorage.removeItem('user_balance');
+    localStorage.removeItem(STORAGE_KEYS.USER_NAME);
+    localStorage.removeItem(STORAGE_KEYS.USER_EMAIL);
+    localStorage.removeItem(STORAGE_KEYS.USER_BALANCE);
     setActiveView("dashboard");
     toast.info("Logged out");
   };
@@ -185,7 +184,7 @@ const Index = () => {
       if (res.ok) {
         const updatedUser = await res.json();
         setUser(updatedUser);
-        localStorage.setItem('user_name', updatedUser.name);
+        localStorage.setItem(STORAGE_KEYS.USER_NAME, updatedUser.name);
         setIsProfileUpdateOpen(false);
         toast.success("Profile updated!");
       } else {
@@ -254,6 +253,8 @@ const Index = () => {
     if (!token && ["history", "library", "space", "settings"].includes(activeView)) {
       setActiveView("dashboard");
     }
+    // Scroll to top on view change
+    document.getElementById("main-content")?.scrollTo({ top: 0, behavior: "smooth" });
   }, [activeView]);
 
   const handlePayment = async (plan: string) => {
@@ -317,19 +318,13 @@ const Index = () => {
       });
       rzp.open();
     } catch (err: any) {
-      console.error("Payment initiation error:", err);
+      logger.error("Payment initiation error:", err);
       toast.error(err.message || "Payment initiation failed");
     }
   };
 
   const handleSendMessage = async (content: string) => {
-    let finalContent = content;
-    
-    // Inject development context if they ask about the task or project
-    if (content.toLowerCase().includes("current status") || content.toLowerCase().includes("task") || content.toLowerCase().includes("implement")) {
-      const devContext = "Status: Completed initial phase. Implemented: 1. Auto-scroll sync between video, transcript, and chapters. 2. Fixed history loading for transcripts. 3. Sticky video layout with minimize/toggle button. 4. Multi-provider AI fallback (Groq, Gemini, etc.). 5. 10s transcript grouping for readability.";
-      finalContent = `[DEVELOPMENT_CONTEXT: ${devContext}]\n\n${content}`;
-    }
+    const finalContent = content;
     const newUserMsg = { role: "user" as const, content: contextSnippet ? `[Context: ${contextSnippet}]\n\n${finalContent}` : finalContent };
     const updatedMessages = [...chatMessages, newUserMsg];
     setChatMessages(updatedMessages);
@@ -339,15 +334,15 @@ const Index = () => {
     try {
       if (activeAnalysisId) {
         // Use streaming RAG chat endpoint
-        const response = await fetch(`${window.location.origin.replace('8080', '8000')}/api/chat/${activeAnalysisId}`, {
+        const response = await fetch(`${API_BASE_URL}/chat/${activeAnalysisId}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('token')}`,
+            "Authorization": `Bearer ${getAuthToken()}`,
           },
           body: JSON.stringify({
-            message: newUserMsg.content, // Use newUserMsg.content which includes contextSnippet
-            chatHistory: chatMessages.slice(-5)
+            message: newUserMsg.content,
+            chatHistory: chatMessages.slice(-MAX_CHAT_HISTORY_CONTEXT)
           }),
         });
 
@@ -384,7 +379,7 @@ const Index = () => {
                 }
                 // Sources can be handled here if needed
               } catch (e) {
-                console.warn("Error parsing chunk", e);
+                logger.warn("Error parsing chunk", e);
               }
             }
           }
@@ -405,7 +400,7 @@ const Index = () => {
         setChatMessages(prev => [...prev, { role: "assistant", content: aiResponse as string }]);
       }
     } catch (err: any) {
-      console.error("Chat error:", err);
+      logger.error("Chat error:", err);
       toast.error(err.message || "AI Assistant is having trouble. Try again.");
     } finally {
       setIsChatLoading(false);
@@ -429,7 +424,8 @@ const Index = () => {
         body: JSON.stringify({
           urls: ids.map(id => `https://youtube.com/watch?v=${id}`),
           expertise: expertLevel.toLowerCase(),
-          full_analysis: options.full_analysis ?? false,
+          full_analysis: options.full_analysis ?? true,
+          style: options.style || analysisStyle || undefined,
           ...options
         }),
       });
@@ -471,14 +467,12 @@ const Index = () => {
       // Refresh history list immediately so user sees it "processing"
       setHistoryItems(await fetchHistory());
 
-      setHistoryItems(await fetchHistory());
-
       const data = await pollAnalysis(analysisId, ids);
       if (data) {
         toast.success("Analysis complete!");
       }
     } catch (err: any) {
-      console.error("Summarize error:", err);
+      logger.error("Summarize error:", err);
       toast.error(err.message || "Failed to analyze video");
     } finally {
       setIsLoading(false);
@@ -490,9 +484,9 @@ const Index = () => {
     let data = null;
     let attempts = 0;
     
-    while (!completed && attempts < 600) {
+    while (!completed && attempts < POLL_MAX_ATTEMPTS) {
       attempts++;
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
       try {
         const statusRes = await apiFetch(`/analysis/${analysisId}/status`);
         if (!statusRes.ok) continue;
@@ -515,7 +509,7 @@ const Index = () => {
           throw new Error(statusData.error || "Analysis task failed");
         }
       } catch (e) {
-        console.warn("Polling attempt failed:", e);
+        logger.warn("Polling attempt failed:", e);
       }
     }
 
@@ -544,7 +538,8 @@ const Index = () => {
         roadmap: analysis.roadmap,
         mind_map: analysis.mind_map,
         flashcards: analysis.flashcards,
-        transcript_segments: transcript_segments || analysis.transcript_segments
+        transcript_segments: transcript_segments || analysis.transcript_segments,
+        learning_context: analysis.learning_context
       };
 
       const mData: Metadata = {
@@ -571,7 +566,6 @@ const Index = () => {
         status: "completed"
       });
 
-      setActiveAnalysisId(null);
       setAnalysisStatus(null);
       setAnalysisProgress(0);
       setHistoryItems(await fetchHistory());
@@ -594,21 +588,95 @@ const Index = () => {
     setSummaryData(null);
     setVideoIds([]);
     setSelectedSpace(null);
+    setActiveAnalysisId(null);
+    setChatMessages([]);
+  };
+
+  const handleExport = async (format: "json" | "markdown") => {
+    if (!activeAnalysisId) {
+      toast.error("No analysis to export");
+      return;
+    }
+    try {
+      const res = await exportApi.download(activeAnalysisId, format);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const ext = format === "markdown" ? "md" : "json";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${videoData?.title || "analysis"}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported as ${format.toUpperCase()}`);
+    } catch (err: any) {
+      logger.error("Export error:", err);
+      toast.error("Export failed. Please try again.");
+    }
+  };
+
+  const loadChatHistory = async (analysisId: string) => {
+    try {
+      const res = await chatApi.getHistory(analysisId);
+      if (res.ok) {
+        const history = await res.json();
+        if (Array.isArray(history) && history.length > 0) {
+          const messages = history.map((msg: any) => ({
+            role: msg.role as "user" | "assistant",
+            content: msg.content,
+          }));
+          setChatMessages(messages);
+        }
+      }
+    } catch (err) {
+      logger.warn("Failed to load chat history:", err);
+    }
   };
 
   const handleToolClick = (toolId: string, value?: string) => {
     if (["quiz", "roadmap", "mindmap"].includes(toolId)) {
-      document.getElementById(toolId)?.scrollIntoView({ behavior: "smooth" });
-    } else if (toolId === "podcast") {
-      handleSubmit(videoIds, { expertise, provider: "groq", model: "llama-3.3-70b-versatile", language: "English", style: "Podcast Script" });
-    } else if (toolId === "deepdive") {
-      handleSubmit(videoIds, { expertise, provider: "groq", model: "llama-3.3-70b-versatile", language: "English", style: "Academic Research" });
-    } else if (toolId === "ask" && value) {
-      handleSubmit(videoIds, { expertise, provider: "groq", model: "llama-3.3-70b-versatile", language: "English", style: `Q&A Mode: ${value}` });
-    } else if (toolId === "action" && value) {
-      handleSubmit(videoIds, { expertise, provider: "groq", model: "llama-3.3-70b-versatile", language: "English", style: value });
+      const el = document.getElementById(toolId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+        toast.success(`Scrolled to ${toolId === "quiz" ? "Quiz" : toolId === "roadmap" ? "Roadmap" : "Mind Map"}`);
+      } else {
+        setIsChatOpen(true);
+        handleSendMessage(
+          toolId === "quiz" ? "Generate a comprehensive quiz with multiple choice questions to test understanding of this video's content." :
+          toolId === "roadmap" ? "Create a step-by-step learning roadmap based on this video's content." :
+          "Create a mind map outline showing the key topics and their relationships from this video."
+        );
+        toast.info("Generating via AI chat...");
+      }
     } else if (toolId === "flashcards") {
-      handleSubmit(videoIds, { expertise, provider: "groq", model: "llama-3.3-70b-versatile", language: "English", style: "Flashcards Data JSON" });
+      const flashcardsTab = document.querySelector('[value="flashcards"]') as HTMLElement;
+      if (flashcardsTab) {
+        flashcardsTab.click();
+        flashcardsTab.scrollIntoView({ behavior: "smooth" });
+        toast.success("Scrolled to Flashcards");
+      } else {
+        setIsChatOpen(true);
+        handleSendMessage("Generate a set of flashcards from this video's key concepts. Format each card with a clear question on the front and a concise answer on the back.");
+        toast.info("Generating flashcards via AI chat...");
+      }
+    } else if (toolId === "podcast") {
+      setIsChatOpen(true);
+      handleSendMessage("Create a podcast-style script that covers the main topics of this video in a conversational tone. Include an intro, main discussion points, and a closing summary.");
+      toast.info("Generating podcast script...");
+    } else if (toolId === "deepdive") {
+      setIsChatOpen(true);
+      handleSendMessage("Provide an in-depth academic analysis of this video's content, including key arguments, evidence, critical evaluation, and connections to broader topics.");
+      toast.info("Generating deep-dive analysis...");
+    } else if (toolId === "notes") {
+      setIsChatOpen(true);
+      handleSendMessage("Create comprehensive study notes from this video. Include key definitions, important concepts, examples mentioned, and a brief summary of each major section.");
+      toast.info("Generating study notes...");
+    } else if (toolId === "ask" && value) {
+      setIsChatOpen(true);
+      handleSendMessage(value);
+    } else if (toolId === "action" && value) {
+      setIsChatOpen(true);
+      handleSendMessage(value);
     }
   };
 
@@ -625,6 +693,12 @@ const Index = () => {
     setMetadata(item.metadata);
     setActiveAnalysisId(item.id);
     setActiveView("analysis");
+    setChatMessages([]);
+
+    // Load chat history from backend
+    if (item.id && getAuthToken()) {
+      loadChatHistory(item.id);
+    }
 
     // Fetch full details if it's already completed to ensure transcript is loaded
     if (item.status === "completed") {
@@ -647,14 +721,15 @@ const Index = () => {
             roadmap: analysis.roadmap,
             mind_map: analysis.mind_map,
             flashcards: analysis.flashcards,
-            transcript_segments: transcript_segments || analysis.transcript_segments
+            transcript_segments: transcript_segments || analysis.transcript_segments,
+            learning_context: analysis.learning_context
           };
 
           setSummaryData(sData);
           setTranscript(transcript_text);
         }
       } catch (err) {
-        console.error("Failed to fetch full analysis details:", err);
+        logger.error("Failed to fetch full analysis details:", err);
       }
     }
 
@@ -680,6 +755,21 @@ const Index = () => {
     await clearHistory();
     setHistoryItems([]);
     toast.success("History cleared!");
+  };
+
+  const getRelativeDate = (dateStr: string) => {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
 
   const handleSidebarClick = (view: string | { type: string; id: string; name: string }) => {
@@ -727,15 +817,19 @@ const Index = () => {
   };
 
   const handleDeleteSpace = async (id: string) => {
-    if (confirm("Are you sure you want to delete this space?")) {
-      await deleteSpace(id);
-      setSpaces(prev => prev.filter(s => s.id !== id));
-      if (selectedSpace?.id === id) {
-        setSelectedSpace(null);
-        setActiveView("dashboard");
-      }
-      toast.success("Space deleted");
+    setDeleteSpaceConfirmId(id);
+  };
+
+  const confirmDeleteSpace = async () => {
+    if (!deleteSpaceConfirmId) return;
+    await deleteSpace(deleteSpaceConfirmId);
+    setSpaces(prev => prev.filter(s => s.id !== deleteSpaceConfirmId));
+    if (selectedSpace?.id === deleteSpaceConfirmId) {
+      setSelectedSpace(null);
+      setActiveView("dashboard");
     }
+    toast.success("Space deleted");
+    setDeleteSpaceConfirmId(null);
   };
 
   const handleAddToSpace = async (spaceId: string) => {
@@ -757,26 +851,51 @@ const Index = () => {
 
   return (
     <div className="flex bg-white h-screen overflow-hidden text-foreground">
+      {/* Sidebar - hidden on mobile unless toggled, always visible on desktop unless focus mode */}
       {!isFocusMode && (
-        <Sidebar 
-          onViewChange={handleSidebarClick} 
-          activeView={
-            activeView === "dashboard" ? "Search" : 
-            activeView === "space" ? selectedSpace?.name :
-            activeView === "settings" ? "Settings" :
-            activeView.charAt(0).toUpperCase() + activeView.slice(1)
-          }
-          recents={historyItems.slice(0, 5).map(h => h.title)}
-          spaces={spaces}
-          onCreateSpace={handleCreateNewSpace}
-          onRenameSpace={handleRenameSpace}
-          onDeleteSpace={handleDeleteSpace}
-          user={user}
-          credits={credits}
-          onLogout={handleLogout}
-          onAuthSuccess={fetchUserData}
-          onTopUp={() => setIsTopUpOpen(true)}
-        />
+        <>
+          {/* Mobile overlay */}
+          <AnimatePresence>
+            {isSidebarOpen && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40 lg:hidden"
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
+          </AnimatePresence>
+          <div className={cn(
+            "fixed lg:relative z-50 lg:z-auto transition-transform duration-300 ease-out",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          )}>
+            <Sidebar 
+              onViewChange={(view) => {
+                handleSidebarClick(view);
+                // Close sidebar on mobile after navigation
+                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+              }} 
+              activeView={
+                activeView === "dashboard" ? "Search" : 
+                activeView === "space" ? selectedSpace?.name :
+                activeView === "settings" ? "Settings" :
+                activeView.charAt(0).toUpperCase() + activeView.slice(1)
+              }
+              recents={historyItems.slice(0, 5).map(h => h.title)}
+              spaces={spaces}
+              onCreateSpace={handleCreateNewSpace}
+              onRenameSpace={handleRenameSpace}
+              onDeleteSpace={handleDeleteSpace}
+              user={user}
+              credits={credits}
+              onLogout={handleLogout}
+              onAuthSuccess={fetchUserData}
+              onTopUp={() => setIsTopUpOpen(true)}
+            />
+          </div>
+        </>
       )}
       
       {/* ... Feedback Dialog ... */}
@@ -784,7 +903,7 @@ const Index = () => {
         {/* ... Feedback Dialog Content ... */}
         <DialogContent className="rounded-3xl border-gray-100 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase italic tracking-tighter">Send Feedback</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Send Feedback</DialogTitle>
             <DialogDescription className="text-sm font-medium text-gray-500">
               Help us improve YouLearn. What's on your mind?
             </DialogDescription>
@@ -796,7 +915,7 @@ const Index = () => {
             className="min-h-[120px] rounded-2xl border-gray-100 focus:ring-1 focus:ring-black"
           />
           <DialogFooter>
-            <Button onClick={submitFeedback} className="rounded-xl font-bold uppercase tracking-widest text-xs h-10 px-6 bg-black text-white">Send</Button>
+            <Button onClick={submitFeedback} className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white">Send</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -804,7 +923,7 @@ const Index = () => {
       <Dialog open={isProfileUpdateOpen} onOpenChange={setIsProfileUpdateOpen}>
         <DialogContent className="rounded-3xl border-gray-100 shadow-2xl max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase italic tracking-tighter">Update Profile</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Update Profile</DialogTitle>
             <DialogDescription className="text-xs font-medium text-gray-500">
               Change your display name below.
             </DialogDescription>
@@ -814,11 +933,11 @@ const Index = () => {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Full Name"
-              className="rounded-2xl border-gray-100 focus:ring-1 focus:ring-black h-12 px-4 font-bold"
+              className="rounded-2xl border-gray-100 focus:ring-1 focus:ring-black h-12 px-4 font-medium"
             />
           </div>
           <DialogFooter className="flex gap-2">
-            <Button onClick={handleUpdateProfile} className="rounded-xl flex-1 font-bold uppercase tracking-widest text-[10px] bg-black text-white px-8">Save</Button>
+            <Button onClick={handleUpdateProfile} className="rounded-xl flex-1 font-semibold text-sm bg-black text-white px-8">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -832,21 +951,21 @@ const Index = () => {
                  <div className="p-2 bg-black rounded-xl">
                    <Coins className="h-5 w-5 text-white" />
                  </div>
-                 <span className="text-sm font-black uppercase tracking-tighter italic">Top Up Credits</span>
+                 <span className="text-sm font-bold">Top Up Credits</span>
                </div>
-               <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none mb-4">Fuel Your Learning.</h2>
+               <h2 className="text-3xl font-bold tracking-tight leading-none mb-4">Fuel Your Learning.</h2>
                <p className="text-sm font-medium text-gray-500 mb-8 max-w-[240px]">Get access to more deep-dives, podcast synthesis, and advanced AI models.</p>
                
                <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
                     <div className="h-1 w-1 rounded-full bg-black" />
                     Unlimited Transcript Extraction
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
                     <div className="h-1 w-1 rounded-full bg-black" />
                     Advanced AI Reasoning Models
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
                     <div className="h-1 w-1 rounded-full bg-black" />
                     Export to PDF, MD, & Notion
                   </div>
@@ -859,10 +978,10 @@ const Index = () => {
                  className="w-full group relative p-6 bg-white border border-gray-100 rounded-[2rem] text-left hover:border-black hover:shadow-xl transition-all"
                >
                  <div className="flex justify-between items-start mb-2">
-                   <span className="text-xs font-black uppercase tracking-widest text-gray-400 group-hover:text-black">Starter</span>
-                   <span className="text-2xl font-black italic tracking-tighter">₹499</span>
+                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 group-hover:text-black">Starter</span>
+                   <span className="text-2xl font-bold">₹499</span>
                  </div>
-                 <h3 className="text-xl font-black italic tracking-tighter uppercase mb-1">500 Credits</h3>
+                 <h3 className="text-xl font-bold mb-1">500 Credits</h3>
                  <p className="text-[10px] font-bold text-gray-400 group-hover:text-gray-500 transition-colors">Perfect for occasional researchers.</p>
                </button>
 
@@ -870,18 +989,34 @@ const Index = () => {
                  onClick={() => handlePayment("pro")}
                  className="w-full group relative p-6 bg-black text-white border border-black rounded-[2rem] text-left hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] transition-all overflow-hidden"
                >
-                 <div className="absolute top-4 right-4 px-2 py-0.5 bg-white/20 rounded-full text-[8px] font-black uppercase tracking-tighter backdrop-blur-md">Best Value</div>
+                 <div className="absolute top-4 right-4 px-2 py-0.5 bg-white/20 rounded-full text-[9px] font-semibold uppercase backdrop-blur-md">Best Value</div>
                  <div className="flex justify-between items-start mb-2">
-                   <span className="text-xs font-black uppercase tracking-widest text-white/50">Pro Miner</span>
-                   <span className="text-2xl font-black italic tracking-tighter">₹1499</span>
+                   <span className="text-xs font-semibold uppercase tracking-wider text-white/50">Pro Miner</span>
+                   <span className="text-2xl font-bold">₹1499</span>
                  </div>
-                 <h3 className="text-xl font-black italic tracking-tighter uppercase mb-1">2000 Credits</h3>
+                 <h3 className="text-xl font-bold mb-1">2000 Credits</h3>
                  <p className="text-[10px] font-bold text-white/40 group-hover:text-white/60 transition-colors">For serious learners and power users.</p>
                </button>
 
-               <p className="text-[8px] font-bold text-center text-gray-400 uppercase tracking-widest px-4">Secure payment via Razorpay. Credits expire 12 months from purchase.</p>
+               <p className="text-[10px] font-medium text-center text-gray-400 px-4">Secure payment via Razorpay. Credits expire 12 months from purchase.</p>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Space Confirmation */}
+      <Dialog open={!!deleteSpaceConfirmId} onOpenChange={() => setDeleteSpaceConfirmId(null)}>
+        <DialogContent className="rounded-2xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Space</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this space? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setDeleteSpaceConfirmId(null)} className="flex-1 rounded-lg">Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteSpace} className="flex-1 rounded-lg">Delete</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       
@@ -909,57 +1044,124 @@ const Index = () => {
         </>
       )}
       
-      <main className="flex-1 relative overflow-y-auto">
-        {/* Advanced Top Bar */}
-        <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 py-3 flex items-center justify-between">
-           <div className="flex items-center gap-4">
+      <main id="main-content" role="main" aria-label="Main content" className="flex-1 relative overflow-y-auto scrollbar-thin">
+        {/* Top Bar */}
+        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 py-2.5 flex items-center justify-between">
+           <div className="flex items-center gap-3 min-w-0">
               {isFocusMode && (
                 <button 
                   onClick={() => setIsFocusMode(false)}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-all"
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-all shrink-0"
                 >
                   <PlusCircle className="h-5 w-5 rotate-45" />
                 </button>
               )}
-              <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-2xl border border-gray-100">
-                 {(["Beginner", "Intermediate", "Expert"] as const).map((level) => (
-                    <button
-                      key={level}
-                      onClick={() => setExpertise(level)}
-                      className={cn(
-                        "px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
-                        expertise === level ? "bg-black text-white shadow-lg" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {level}
-                    </button>
-                 ))}
-              </div>
+              {!isFocusMode && (
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-all shrink-0 lg:hidden"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              )}
+              {!isFocusMode && (
+                <div className="flex items-center gap-1.5 shrink-0 lg:hidden">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 6h2v12H4V6zm6 0h2v12h-2V6z" fill="currentColor"/>
+                  </svg>
+                </div>
+              )}
+              {activeView === "analysis" && videoData ? (
+                <div className="flex items-center gap-2 min-w-0">
+                  <button 
+                    onClick={() => setActiveView("dashboard")} 
+                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                    aria-label="Back to dashboard"
+                  >
+                    <ChevronLeft className="h-4 w-4 text-gray-400" />
+                  </button>
+                  <h1 className="text-sm font-medium text-foreground truncate">{videoData.title}</h1>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 bg-gray-50 p-0.5 rounded-lg border border-gray-100">
+                   {(["Beginner", "Intermediate", "Expert"] as const).map((level) => (
+                      <button
+                        key={level}
+                        onClick={() => setExpertise(level)}
+                        className={cn(
+                          "px-3 py-1.5 text-xs rounded-md transition-all",
+                          expertise === level ? "bg-white text-foreground font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {level}
+                      </button>
+                   ))}
+                </div>
+              )}
            </div>
            
-               <div className="flex items-center gap-3">
+           <div className="flex items-center gap-2 shrink-0">
+              {activeView === "analysis" && activeAnalysisId && summaryData && (
+                <>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsFocusMode(!isFocusMode)}
-                    className={cn(
-                      "rounded-xl h-9 px-4 text-[10px] font-black uppercase tracking-widest border-gray-100",
-                      isFocusMode && "bg-black text-white border-black"
-                    )}
+                    onClick={() => handleExport("markdown")}
+                    className="rounded-lg h-8 px-3 text-xs font-medium border-gray-200 gap-1.5 hidden sm:inline-flex"
                   >
-                    {isFocusMode ? "Exit Focus" : "Focus Mode"}
+                    <FileDown className="h-3.5 w-3.5" />
+                    Export MD
                   </Button>
-                  {activeView === "analysis" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsVideoMinimized(!isVideoMinimized)}
-                      className="rounded-xl h-9 px-4 text-[10px] font-black uppercase tracking-widest border-gray-100"
-                    >
-                      {isVideoMinimized ? "Show Video" : "Hide Video"}
-                    </Button>
-                  )}
-               </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport("json")}
+                    className="rounded-lg h-8 px-3 text-xs font-medium border-gray-200 gap-1.5 hidden md:inline-flex"
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
+                    Export JSON
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setIsTopUpOpen(true)}
+                className="rounded-full h-8 px-4 text-xs font-medium bg-green-600 hover:bg-green-700 text-white hidden sm:inline-flex"
+              >
+                Upgrade
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFocusMode(!isFocusMode)}
+                className={cn(
+                  "rounded-lg h-8 px-3 text-xs font-medium border-gray-200 hidden md:inline-flex",
+                  isFocusMode && "bg-gray-900 text-white border-gray-900"
+                )}
+              >
+                {isFocusMode ? "Exit Focus" : "New Exam"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const url = window.location.href;
+                  navigator.clipboard.writeText(url);
+                  toast.success("Link copied!");
+                }}
+                className="rounded-lg h-8 px-3 text-xs font-medium border-gray-200 hidden md:inline-flex"
+              >
+                Share
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-400"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+           </div>
         </div>
 
         <AnimatePresence mode="wait">
@@ -971,38 +1173,11 @@ const Index = () => {
               exit={{ opacity: 0 }}
               className="flex h-full"
             >
-              <div className="flex-1 overflow-y-auto p-6 lg:p-10">
-                <div className="max-w-5xl mx-auto space-y-8 pb-20">
-                  <header className="flex items-center justify-between mb-2">
-                    <Button 
-                      variant="ghost" 
-                      onClick={handleBackToDashboard}
-                      className="gap-2 -ml-4 text-muted-foreground hover:text-foreground font-bold uppercase tracking-tight text-[10px]"
-                    >
-                      <ChevronLeft className="h-4 w-4" /> Back to Dashboard
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="rounded-xl border-gray-100 font-bold uppercase tracking-tight text-[10px] h-8"
-                        onClick={() => {
-                          const url = window.location.href;
-                          navigator.clipboard.writeText(url);
-                          toast.success("Share link copied to clipboard!");
-                        }}
-                      >
-                        <Share2 className="h-3 w-3 mr-2" /> Share
-                      </Button>
-                      <Button variant="outline" size="icon" className="rounded-xl border-gray-100 h-8 w-8">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </header>
-
+              <div className="flex-1 overflow-y-auto p-6 lg:p-8">
+                <div className="max-w-4xl mx-auto space-y-6 pb-20">
                   <div className={cn(
                     "transition-all duration-500 ease-in-out origin-top relative group",
-                    isVideoMinimized ? "h-0 opacity-0 pointer-events-none mb-0 overflow-hidden" : "h-auto opacity-100 mb-8 sticky top-0 z-40 bg-white/80 backdrop-blur-md pb-4 pt-2 -mx-4 px-4 rounded-b-3xl border-b border-gray-100"
+                    isVideoMinimized ? "h-0 opacity-0 pointer-events-none mb-0 overflow-hidden" : "h-auto opacity-100"
                   )}>
                     {!isVideoMinimized && (
                       <Button
@@ -1051,11 +1226,11 @@ const Index = () => {
                       <div className="mb-12 bg-gray-50/50 border border-gray-100 p-8 rounded-[2.5rem] shadow-sm">
                         <div className="flex items-end justify-between mb-8">
                            <div>
-                             <h2 className="text-3xl font-black tracking-tighter uppercase italic mb-2">Analyzing Intelligence</h2>
+                             <h2 className="text-2xl font-bold mb-2">Analyzing Intelligence</h2>
                              <div className="flex items-center gap-3">
                                <div className="flex items-center gap-1.5">
                                  <div className={cn("h-1.5 w-1.5 rounded-full animate-pulse", analysisProgress < 30 ? "bg-amber-500" : analysisProgress < 70 ? "bg-blue-500" : "bg-green-500")} />
-                                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                 <span className="text-xs font-medium text-gray-400">
                                    {analysisProgress < 20 ? "Extracting Metadata" : 
                                     analysisProgress < 50 ? "Generating Transcript" : 
                                     analysisProgress < 80 ? "AI Synthesis Pipeline" : 
@@ -1065,11 +1240,11 @@ const Index = () => {
                              </div>
                            </div>
                            <div className="text-right">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-300 mb-1">Overall Progress</p>
+                             <p className="text-xs font-medium text-gray-300 mb-1">Overall Progress</p>
                              <div className="flex flex-col items-end">
-                               <span className="text-5xl font-black italic tracking-tightest leading-none text-black">{analysisProgress}%</span>
+                               <span className="text-4xl font-bold leading-none text-black">{analysisProgress}%</span>
                                {estimatedRemaining !== null && estimatedRemaining > 0 && (
-                                 <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 mt-2">
+                                 <span className="text-xs font-medium text-blue-500 mt-2">
                                    Est. Remaining: {Math.floor(estimatedRemaining / 60)}:{String(estimatedRemaining % 60).padStart(2, '0')}
                                  </span>
                                )}
@@ -1113,7 +1288,68 @@ const Index = () => {
                 </div>
               </div>
               
-              <LearnTools onToolClick={handleToolClick} />
+              <LearnTools 
+                onToolClick={handleToolClick} 
+                hasQuiz={!!summaryData?.quiz?.length}
+                hasFlashcards={!!summaryData?.flashcards?.length}
+                hasRoadmap={!!summaryData?.roadmap}
+                hasMindMap={!!summaryData?.mind_map?.nodes?.length}
+                isChatLoading={isChatLoading}
+                sets={[
+                  ...(summaryData?.quiz?.length ? [{ id: 'quiz-set', name: `Quiz (${summaryData.quiz.length} questions)`, date: 'Generated', type: 'quiz' }] : []),
+                  ...(summaryData?.flashcards?.length ? [{ id: 'flashcard-set', name: `Flashcards (${summaryData.flashcards.length} cards)`, date: 'Generated', type: 'flashcards' }] : []),
+                  ...(summaryData?.roadmap ? [{ id: 'roadmap-set', name: `Learning Roadmap`, date: 'Generated', type: 'roadmap' }] : []),
+                ]}
+              />
+
+              {/* Mobile Learn Tools Toggle */}
+              <button
+                onClick={() => setIsMobileLearnOpen(!isMobileLearnOpen)}
+                className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-black text-white rounded-2xl shadow-xl flex items-center justify-center hover:bg-gray-800 transition-all"
+                aria-label="Open learning tools"
+              >
+                <GraduationCap className="h-6 w-6" />
+              </button>
+
+              {/* Mobile Learn Tools Panel */}
+              <AnimatePresence>
+                {isMobileLearnOpen && (
+                  <>
+                    <motion.div 
+                      initial={{ opacity: 0 }} 
+                      animate={{ opacity: 1 }} 
+                      exit={{ opacity: 0 }}
+                      className="lg:hidden fixed inset-0 bg-black/20 z-40"
+                      onClick={() => setIsMobileLearnOpen(false)}
+                    />
+                    <motion.div 
+                      initial={{ y: "100%" }} 
+                      animate={{ y: 0 }} 
+                      exit={{ y: "100%" }}
+                      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[70vh] overflow-y-auto"
+                    >
+                      <div className="p-1 flex justify-center">
+                        <div className="w-10 h-1 rounded-full bg-gray-200" />
+                      </div>
+                      <LearnTools 
+                        onToolClick={(id, v) => { handleToolClick(id, v); setIsMobileLearnOpen(false); }}
+                        hasQuiz={!!summaryData?.quiz?.length}
+                        hasFlashcards={!!summaryData?.flashcards?.length}
+                        hasRoadmap={!!summaryData?.roadmap}
+                        hasMindMap={!!summaryData?.mind_map?.nodes?.length}
+                        isChatLoading={isChatLoading}
+                        sets={[
+                          ...(summaryData?.quiz?.length ? [{ id: 'quiz-set', name: `Quiz (${summaryData.quiz.length} questions)`, date: 'Generated', type: 'quiz' }] : []),
+                          ...(summaryData?.flashcards?.length ? [{ id: 'flashcard-set', name: `Flashcards (${summaryData.flashcards.length} cards)`, date: 'Generated', type: 'flashcards' }] : []),
+                          ...(summaryData?.roadmap ? [{ id: 'roadmap-set', name: `Learning Roadmap`, date: 'Generated', type: 'roadmap' }] : []),
+                        ]}
+                        isMobile
+                      />
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </motion.div>
             ) : activeView === "history" || activeView === "library" || activeView === "space" ? (
             <motion.div 
@@ -1123,54 +1359,111 @@ const Index = () => {
               exit={{ opacity: 0, x: -20 }}
               className="max-w-4xl mx-auto py-16 px-6"
             >
+              {/* View Heading */}
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-foreground">
+                  {activeView === "history" ? "History" : activeView === "library" ? "My Library" : selectedSpace?.name || "Space"}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {activeView === "history" ? "All your previously analyzed videos" : 
+                   activeView === "library" ? "Videos saved to your spaces" :
+                   `${selectedSpace?.videoIds.length ?? 0} videos in this space`}
+                </p>
+              </div>
+
               {!getAuthToken() ? (
-                <div className="text-center py-20 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-4">Sign in required</h2>
-                  <p className="text-muted-foreground font-bold mb-6 truncate max-w-sm mx-auto">Please log in to access your saved history, library, and learning spaces.</p>
-                  <Button onClick={() => setActiveView("dashboard")} className="rounded-xl font-bold uppercase tracking-widest text-xs h-10 px-6 bg-black text-white">Back to Search</Button>
+                <div className="text-center py-24">
+                  <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-gray-100">
+                    <UserIcon className="h-7 w-7 text-gray-200" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">Sign in to continue</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">
+                    Log in to access your saved history, library, and learning spaces.
+                  </p>
+                  <Button onClick={() => setActiveView("dashboard")} className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white hover:bg-gray-900">Back to Search</Button>
                 </div>
               ) : ((activeView === "history" && historyItems.length > 0) || 
                 (activeView === "library" && historyItems.some(h => spaces.some(s => s.videoIds.includes(h.videoIds[0])))) || 
                 (activeView === "space" && (selectedSpace?.videoIds.length ?? 0) > 0)) ? (
-                <div className="grid gap-4">
+                <div className="grid gap-3">
                   {(activeView === "space" ? 
                     historyItems.filter(h => selectedSpace?.videoIds.includes(h.videoIds[0])) : 
                     activeView === "library" ?
                     historyItems.filter(h => spaces.some(s => s.videoIds.includes(h.videoIds[0]))) :
                     historyItems
                   ).map((item) => (
-                    <button 
+                    <motion.button 
                       key={item.id} 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
                       onClick={() => handleLoadHistoryItem(item)}
-                      className="flex items-center justify-between p-6 bg-white border border-gray-100 rounded-3xl hover:border-gray-300 transition-all text-left group shadow-sm relative overflow-hidden"
+                      className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 hover:shadow-md transition-all text-left group"
                     >
-                      <div className="flex items-center gap-4">
-                         <div className="w-16 h-12 bg-gray-100 rounded-xl overflow-hidden shrink-0 border">
-                            <img src={`https://img.youtube.com/vi/${item.videoIds[0]}/default.jpg`} alt="" className="w-full h-full object-cover" />
+                      <div className="flex items-center gap-4 min-w-0">
+                         <div className="w-24 h-16 bg-gray-100 rounded-xl overflow-hidden shrink-0 border border-gray-50 relative">
+                            <img src={`https://img.youtube.com/vi/${item.videoIds[0]}/mqdefault.jpg`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            {item.status && item.status !== "completed" && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <span className="text-[9px] font-semibold uppercase text-white bg-amber-500 px-1.5 py-0.5 rounded">
+                                  {item.status === "failed" ? "Failed" : "Processing"}
+                                </span>
+                              </div>
+                            )}
                          </div>
-                         <div>
-                           <h3 className="text-lg font-bold group-hover:text-primary transition-colors line-clamp-1">{item.title}</h3>
-                           <p className="text-sm text-muted-foreground font-medium mt-1">
-                             {new Date(item.date).toLocaleDateString()}
-                           </p>
+                         <div className="min-w-0">
+                           <h3 className="text-sm font-semibold group-hover:text-black transition-colors line-clamp-1">{item.title}</h3>
+                           <div className="flex items-center gap-2 mt-1.5">
+                             <span className="text-xs text-muted-foreground">
+                               {getRelativeDate(item.date)}
+                             </span>
+                             {item.videoIds.length > 1 && (
+                               <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                                 {item.videoIds.length} videos
+                               </span>
+                             )}
+                           </div>
                          </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button 
                           onClick={(e) => handleDeleteHistoryItem(e, item.id)}
-                          className="p-2 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded-xl transition-all"
+                          className="p-2 hover:bg-red-50 text-gray-200 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                          aria-label="Delete item"
                         >
-                           <X className="h-4 w-4" />
+                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                        <ChevronLeft className="h-5 w-5 text-gray-300 rotate-180 group-hover:text-foreground transition-all" />
+                        <ChevronRight className="h-4 w-4 text-gray-200 group-hover:text-gray-400 transition-all" />
                       </div>
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-20 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
-                  <p className="text-muted-foreground font-bold">This section is empty.</p>
-                  <Button onClick={() => setActiveView("dashboard")} variant="link" className="mt-2 uppercase text-[10px] font-black tracking-widest">Start searching</Button>
+                <div className="text-center py-24">
+                  <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-gray-100">
+                    {activeView === "history" ? (
+                      <HistoryIcon className="h-7 w-7 text-gray-200" />
+                    ) : activeView === "library" ? (
+                      <LibraryIcon className="h-7 w-7 text-gray-200" />
+                    ) : (
+                      <FolderOpen className="h-7 w-7 text-gray-200" />
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">
+                    {activeView === "history" ? "No history yet" : activeView === "library" ? "Your library is empty" : "This space is empty"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">
+                    {activeView === "history" 
+                      ? "Start analyzing a video and it will appear here." 
+                      : activeView === "library"
+                      ? "Add videos to spaces to build your library."
+                      : "Add videos to this space to get started."}
+                  </p>
+                  <Button 
+                    onClick={() => setActiveView("dashboard")} 
+                    className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white hover:bg-gray-900"
+                  >
+                    Start Learning
+                  </Button>
                 </div>
               )}
             </motion.div>
@@ -1182,29 +1475,32 @@ const Index = () => {
               exit={{ opacity: 0 }}
               className="max-w-4xl mx-auto py-16 px-6"
             >
-              <h1 className="text-4xl font-black tracking-tight italic uppercase text-foreground mb-8 text-center underline decoration-black/5 decoration-4 underline-offset-8">Settings</h1>
+              <h1 className="text-2xl font-bold text-foreground mb-8">Settings</h1>
               
               {!user ? (
-                <div className="text-center py-20 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-4">Sign in required</h2>
-                  <p className="text-muted-foreground font-bold mb-6">Please log in to manage your account and data.</p>
-                  <Button onClick={() => (document.querySelector('[data-auth-trigger]') as HTMLElement)?.click()} className="rounded-xl font-bold uppercase tracking-widest text-xs h-10 px-6 bg-black text-white">Sign In</Button>
+                <div className="text-center py-24">
+                  <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-gray-100">
+                    <UserIcon className="h-7 w-7 text-gray-200" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">Sign in to continue</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">Log in to manage your account settings and data.</p>
+                  <Button onClick={() => (document.querySelector('[data-auth-trigger]') as HTMLElement)?.click()} className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white hover:bg-gray-900">Sign In</Button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="p-8 bg-white border border-gray-100 rounded-3xl shadow-sm space-y-6">
                     <div>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Account Profile</h3>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Account Profile</h3>
                       <div className="flex items-center gap-4 mb-4">
-                        <Avatar className="h-16 w-16 rounded-3xl border-2 border-white shadow-lg">
+                        <Avatar className="h-14 w-14 rounded-2xl border-2 border-white shadow-md">
                           <AvatarImage src={user.avatar_url} />
-                          <AvatarFallback className="bg-black text-white text-xl font-black italic uppercase rounded-3xl">
+                          <AvatarFallback className="bg-black text-white text-lg font-bold rounded-2xl">
                             {user.name?.charAt(0) || 'U'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-lg font-black uppercase tracking-tight line-clamp-1">{user.name}</p>
-                          <p className="text-sm text-muted-foreground font-medium line-clamp-1">{user.email}</p>
+                          <p className="text-base font-bold line-clamp-1">{user.name}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-1">{user.email}</p>
                         </div>
                       </div>
                       <Button 
@@ -1213,32 +1509,32 @@ const Index = () => {
                           setNewName(user.name);
                           setIsProfileUpdateOpen(true);
                         }} 
-                        className="w-full rounded-2xl h-12 font-bold uppercase text-[10px] tracking-widest border-gray-100 hover:bg-gray-50"
+                        className="w-full rounded-2xl h-11 font-medium text-sm border-gray-100 hover:bg-gray-50"
                       >
                         Manage Account
                       </Button>
                     </div>
 
                     <div className="border-t pt-6">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Credits & Plan</h3>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Credits & Plan</h3>
                       <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-6 border border-gray-100 flex items-center justify-between">
                         <div>
-                          <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Balance</p>
+                          <p className="text-[10px] font-semibold uppercase text-gray-400 mb-1">Balance</p>
                           <div className="flex items-center gap-2">
                              <Coins className="h-5 w-5 text-amber-500 fill-amber-500" />
-                             <p className="text-2xl font-black uppercase tracking-tighter italic">{credits ?? 0} Credits</p>
+                             <p className="text-xl font-bold">{credits ?? 0} Credits</p>
                           </div>
                         </div>
-                        <Button onClick={() => setIsTopUpOpen(true)} className="rounded-xl bg-black text-white px-4 font-bold uppercase text-[10px] tracking-widest h-10 shadow-lg">Add</Button>
+                        <Button onClick={() => setIsTopUpOpen(true)} className="rounded-xl bg-black text-white px-4 font-semibold text-xs h-10 shadow-lg">Add Credits</Button>
                       </div>
-                      <p className="text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest mt-4">Standard Plan — Active</p>
+                      <p className="text-xs font-medium text-muted-foreground text-center mt-4">Standard Plan — Active</p>
                     </div>
                   </div>
 
                   <div className="space-y-6 flex flex-col h-full bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden min-h-[400px]">
                     <div className="p-8 flex-1 flex flex-col">
-                       <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-6">Activity Log</h3>
-                       <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-none">
+                       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-6">Activity Log</h3>
+                       <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
                          {transactions.length > 0 ? (
                            transactions.map((tx: any) => (
                              <div key={tx.id} className="flex items-center justify-between p-4 bg-gray-50/50 border border-gray-100/50 rounded-2xl group hover:border-gray-200 transition-all">
@@ -1250,15 +1546,15 @@ const Index = () => {
                                    <Coins className="h-4 w-4" />
                                  </div>
                                  <div>
-                                   <p className="text-[10px] font-black uppercase tracking-tight text-foreground group-hover:text-black transition-colors">
+                                   <p className="text-xs font-semibold text-foreground capitalize group-hover:text-black transition-colors">
                                      {tx.operation.replace('_', ' ')}
                                    </p>
-                                   <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                                   <p className="text-[10px] text-muted-foreground opacity-60">
                                      {new Date(tx.created_at).toLocaleDateString()} at {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                    </p>
                                  </div>
                                </div>
-                               <span className={cn("text-xs font-black italic", tx.amount > 0 ? "text-green-600" : "text-amber-600")}>
+                               <span className={cn("text-xs font-bold", tx.amount > 0 ? "text-green-600" : "text-amber-600")}>
                                  {tx.amount > 0 ? "+" : ""}{tx.amount}
                                </span>
                              </div>
@@ -1266,7 +1562,7 @@ const Index = () => {
                          ) : (
                            <div className="flex flex-col items-center justify-center h-full text-center py-20 opacity-20">
                               <Coins className="h-12 w-12 mb-3" />
-                              <p className="text-[10px] font-black uppercase tracking-widest">No activity recorded</p>
+                              <p className="text-xs font-medium">No activity recorded</p>
                            </div>
                          )}
                        </div>
@@ -1274,7 +1570,7 @@ const Index = () => {
                   </div>
 
                   <div className="mt-6 p-8 bg-white border border-gray-100 rounded-3xl shadow-sm space-y-4">
-                     <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Privacy & Data</h3>
+                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Privacy & Data</h3>
                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                            <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -1284,7 +1580,7 @@ const Index = () => {
                           variant="ghost" 
                           size="sm" 
                           onClick={handleClearHistory}
-                          className="rounded-xl h-8 px-4 text-[10px] font-black uppercase text-red-500 hover:bg-red-50"
+                          className="rounded-xl h-8 px-4 text-xs font-medium text-red-500 hover:bg-red-50"
                         >
                           Clear
                         </Button>
@@ -1312,7 +1608,7 @@ const Index = () => {
                             a.click();
                             toast.success("Downloading your data...");
                           }}
-                          className="rounded-xl h-8 px-4 text-[10px] font-black uppercase border-gray-100"
+                          className="rounded-xl h-8 px-4 text-xs font-medium border-gray-100"
                         >
                           Download
                         </Button>
@@ -1328,12 +1624,18 @@ const Index = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <UrlInput onSubmit={handleSubmit} isLoading={isLoading} />
+              <UrlInput 
+                onSubmit={handleSubmit} 
+                isLoading={isLoading} 
+                onUploadComplete={(id) => toast.success(`Video uploaded (ID: ${id}). Analysis will begin shortly.`)} 
+                analysisStyle={analysisStyle}
+                onStyleChange={setAnalysisStyle}
+              />
               
               <div className="max-w-4xl mx-auto px-6 pb-20">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                     <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-6">Recent Spaces</h3>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-6">Recent Spaces</h3>
                       {spaces.length > 0 ? (
                         <div className="grid grid-cols-1 gap-3">
                           {spaces.slice(0, 3).map(space => (
@@ -1348,7 +1650,7 @@ const Index = () => {
                                 </div>
                                 <span className="text-sm font-bold">{space.name}</span>
                               </div>
-                              <span className="text-[10px] font-black text-muted-foreground uppercase">{space.videoIds.length} videos</span>
+                              <span className="text-[10px] font-semibold text-muted-foreground">{space.videoIds.length} videos</span>
                             </button>
                           ))}
                           <Button onClick={() => toast.info("Use the sidebar to create new spaces!")} variant="ghost" className="w-full h-12 rounded-2xl border border-dashed text-muted-foreground gap-2">
@@ -1363,35 +1665,44 @@ const Index = () => {
                            </div>
                            <p className="text-sm font-bold text-gray-600">Create your first space</p>
                            <p className="text-xs text-gray-400 mt-1">Organize your learning by topics</p>
-                           <Button onClick={() => toast.info("Use the sidebar to create new spaces!")} variant="outline" className="mt-4 rounded-xl font-black uppercase text-[10px] tracking-widest h-8">Add Space</Button>
+                           <Button onClick={() => toast.info("Use the sidebar to create new spaces!")} variant="outline" className="mt-4 rounded-xl font-medium text-xs h-8">Add Space</Button>
                         </div>
                       )}
                     </section>
                     
                     <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-6">Continue Learning</h3>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-6">Continue Learning</h3>
                       <div className="space-y-3">
                          {historyItems.slice(0, 3).map((item) => (
                            <button 
                              key={item.id} 
                              onClick={() => handleLoadHistoryItem(item)}
-                             className="w-full flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 transition-all text-left shadow-sm group"
+                             className="w-full flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 hover:shadow-sm transition-all text-left group"
                            >
-                              <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center shrink-0 border border-gray-100 group-hover:bg-white transition-colors">
-                                 <Search className="h-5 w-5 text-gray-400" />
+                              <div className="w-14 h-10 bg-gray-100 rounded-xl overflow-hidden shrink-0 border border-gray-50">
+                                 <img 
+                                   src={`https://img.youtube.com/vi/${item.videoIds[0]}/default.jpg`} 
+                                   alt="" 
+                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                 />
                               </div>
-                              <div className="min-w-0">
-                                 <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{item.title}</p>
-                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight mt-0.5">{new Date(item.date).toLocaleDateString()}</p>
+                              <div className="min-w-0 flex-1">
+                                 <p className="text-sm font-semibold truncate group-hover:text-black transition-colors">{item.title}</p>
+                                 <p className="text-xs text-muted-foreground mt-0.5">{getRelativeDate(item.date)}</p>
                               </div>
+                              <ChevronRight className="h-4 w-4 text-gray-200 group-hover:text-gray-400 shrink-0 transition-colors" />
                            </button>
                          ))}
                          {historyItems.length > 3 && (
-                           <Button onClick={() => setActiveView("history")} variant="link" className="w-full text-center text-[10px] font-black tracking-widest uppercase text-muted-foreground">View all history</Button>
+                           <Button onClick={() => setActiveView("history")} variant="link" className="w-full text-center text-xs font-medium text-muted-foreground">View all history</Button>
                          )}
                          {historyItems.length === 0 && (
-                           <div className="p-8 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
-                              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">No recent searches</p>
+                           <div className="py-10 text-center">
+                              <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-gray-100">
+                                 <HistoryIcon className="h-5 w-5 text-gray-300" />
+                              </div>
+                              <p className="text-sm font-medium text-gray-400">No recent activity</p>
+                              <p className="text-xs text-gray-300 mt-1">Your analyzed videos will show up here</p>
                            </div>
                          )}
                       </div>

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, ThumbsUp, Calendar, Play, Pause } from "lucide-react";
+import { Eye, ThumbsUp, Play } from "lucide-react";
 import { useState } from "react";
 
 interface VideoPreviewProps {
@@ -20,13 +20,13 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm"
+      transition={{ duration: 0.5 }}
+      className="rounded-2xl overflow-hidden border border-gray-100"
     >
-      {/* Full-width video player */}
-      <div className={`relative w-full bg-black ${compact ? "aspect-video" : "aspect-video"}`}>
+      {/* Video player */}
+      <div className="relative w-full bg-black aspect-video">
         <AnimatePresence mode="wait">
           {isPlaying ? (
             <motion.div
@@ -61,18 +61,40 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
               />
               <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-black shadow-xl transform transition-all group-hover:scale-110 border border-white">
+                <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-black shadow-xl transform transition-all group-hover:scale-110 border border-white" role="button" aria-label={`Play ${title}`}>
                   <Play className="h-6 w-6 fill-current ml-1" />
                 </div>
               </div>
-              {duration && (
-                <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-md tracking-wider uppercase">
+              {duration && duration !== "N/A" && (
+                <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-md">
                   {duration}
                 </div>
               )}
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* Video info bar */}
+      <div className="bg-white px-5 py-3 flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-foreground truncate">{title}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{channel}</p>
+        </div>
+        <div className="flex items-center gap-4 shrink-0 ml-4">
+          {views && views !== "N/A" && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Eye className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{views}</span>
+            </div>
+          )}
+          {likes && likes !== "N/A" && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <ThumbsUp className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{likes}</span>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );

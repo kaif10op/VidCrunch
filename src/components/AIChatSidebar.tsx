@@ -6,14 +6,11 @@ import {
   X, 
   MessageSquare, 
   Sparkles,
-  ChevronRight,
-  Minimize2,
-  Maximize2
+  ChevronRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
-import { ScrollArea } from "./ui/scroll-area";
 
 interface Message {
   role: "user" | "assistant";
@@ -69,7 +66,7 @@ const BoldParser = ({ text }: { text: string }) => {
     <>
       {parts.map((part, i) => {
         if (part.startsWith("**") && part.endsWith("**")) {
-          return <span key={i} className="font-black text-black">{part.slice(2, -2)}</span>;
+          return <span key={i} className="font-bold text-black">{part.slice(2, -2)}</span>;
         }
         return <span key={i}>{part}</span>;
       })}
@@ -108,7 +105,7 @@ const AIChatSidebar = ({
       animate={{ x: isOpen ? 0 : 300, opacity: isOpen ? 1 : 0 }}
       transition={{ type: "spring", damping: 20, stiffness: 100 }}
       className={cn(
-        "fixed right-0 top-0 h-screen w-80 bg-white border-l border-gray-100 shadow-2xl z-[60] flex flex-col",
+        "fixed right-0 top-0 h-screen w-80 max-w-[calc(100vw-3rem)] bg-white border-l border-gray-100 shadow-2xl z-[60] flex flex-col",
         !isOpen && "pointer-events-none"
       )}
     >
@@ -118,41 +115,50 @@ const AIChatSidebar = ({
               <Sparkles className="h-4 w-4 text-white" />
            </div>
            <div>
-              <p className="text-[10px] font-black uppercase italic tracking-widest text-black">AI Assistant</p>
+              <p className="text-[10px] font-bold text-black">AI Assistant</p>
               <div className="flex items-center gap-1.5">
                 <div className={cn("w-1.5 h-1.5 rounded-full", isLoading ? "bg-green-500 animate-pulse" : "bg-gray-300")} />
-                <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-tight">{isLoading ? "Processing..." : "Ready to help"}</p>
+                <p className="text-[8px] font-medium text-muted-foreground">{isLoading ? "Processing..." : "Ready to help"}</p>
               </div>
            </div>
         </div>
         <button 
           onClick={onClose}
-          className="p-2 hover:bg-gray-100/50 rounded-2xl transition-all group"
+          className="p-2 hover:bg-gray-100/50 rounded-2xl transition-all group focus:outline-none focus:ring-2 focus:ring-gray-200"
+          aria-label="Close chat"
         >
           <X className="h-4 w-4 text-gray-400 group-hover:text-black" />
         </button>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto" ref={scrollRef}>
+      <div className="flex-1 p-4 overflow-y-auto" ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite">
         <div className="space-y-6">
           {messages.length === 0 && (
             <div className="text-center py-12 px-6">
                <div className="w-14 h-14 bg-gray-50/50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-gray-100/50 shadow-inner">
                   <MessageSquare className="h-6 w-6 text-gray-300" />
                </div>
-               <h3 className="text-sm font-black text-foreground tracking-tight">How can I help today?</h3>
+               <h3 className="text-sm font-semibold text-foreground">How can I help today?</h3>
                <p className="text-[10px] font-medium text-muted-foreground mt-2 leading-relaxed opacity-70">
                   Ask me about specific timestamps, complex concepts, or request a summary.
                </p>
-               <div className="mt-8">
-                 <Button 
-                   variant="outline" 
-                   size="sm" 
-                   className="rounded-[1.25rem] text-[9px] font-black uppercase tracking-widest gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100/50 hover:from-blue-100 hover:to-indigo-100 text-blue-600 transition-all shadow-sm hover:shadow-md py-5 w-full"
-                   onClick={() => onSendMessage("What is the current status of the 'Frontend Syncing Logic' task and what have we implemented so far?")}
-                 >
-                   <Sparkles className="h-3 w-3 animate-pulse" /> Discuss Current Task
-                 </Button>
+               <div className="mt-6 space-y-2">
+                 {[
+                   { label: "Summarize Key Points", prompt: "Summarize the key points and main takeaways from this video." },
+                   { label: "Explain a Concept", prompt: "What are the most important concepts explained in this video?" },
+                   { label: "Create Study Notes", prompt: "Create concise study notes from this video's content." },
+                 ].map((suggestion) => (
+                   <Button 
+                     key={suggestion.label}
+                     variant="outline" 
+                     size="sm" 
+                     className="rounded-2xl text-[9px] font-medium gap-2 border-gray-100 hover:bg-gray-50 text-gray-600 transition-all w-full py-4 justify-start"
+                     onClick={() => onSendMessage(suggestion.prompt)}
+                   >
+                     <ChevronRight className="h-3 w-3 text-gray-300" />
+                     {suggestion.label}
+                   </Button>
+                 ))}
                </div>
             </div>
           )}
@@ -221,7 +227,7 @@ const AIChatSidebar = ({
           >
             <div className="flex items-center gap-2 mb-1">
               <Bot className="h-2 w-2 text-indigo-500" />
-              <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Context Applied</p>
+              <p className="text-[8px] font-medium text-muted-foreground">Context Applied</p>
             </div>
             <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-relaxed opacity-80 italic">
               "{contextSnippet}"
@@ -256,7 +262,7 @@ const AIChatSidebar = ({
             <Send className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-[9px] text-center text-muted-foreground font-bold uppercase tracking-widest opacity-40">Shift + Enter for new line</p>
+        <p className="text-[9px] text-center text-muted-foreground font-medium opacity-40">Shift + Enter for new line</p>
       </div>
     </motion.div>
   );

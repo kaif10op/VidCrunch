@@ -7,23 +7,36 @@ import {
   Clipboard, 
   Mic, 
   Loader2,
-  Sparkles,
   StopCircle,
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { apiFetch, getAuthToken } from "@/lib/api";
 
 interface UrlInputProps {
   onSubmit: (urls: string[], options: Record<string, unknown>) => void;
   isLoading: boolean;
+  onUploadComplete?: (analysisId: string) => void;
+  analysisStyle?: string;
+  onStyleChange?: (style: string) => void;
 }
 
-const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
+const ANALYSIS_STYLES = [
+  { id: "", label: "Auto", desc: "AI chooses best style" },
+  { id: "Detailed", label: "Detailed", desc: "In-depth analysis" },
+  { id: "Academic Research", label: "Academic", desc: "Research-focused" },
+  { id: "Quick Summary", label: "Quick", desc: "Brief overview" },
+  { id: "Podcast Script", label: "Podcast", desc: "Conversational script" },
+  { id: "Study Guide", label: "Study Guide", desc: "Exam preparation" },
+];
+
+const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", onStyleChange }: UrlInputProps) => {
   const [url, setUrl] = useState("");
   const [urls, setUrls] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,7 +62,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
       provider: "groq", 
       model: "llama-3.3-70b-versatile", 
       language: "English", 
-      style: allUrls.length > 1 ? "Comparative Synthesis" : "Detailed" 
+      style: analysisStyle || (allUrls.length > 1 ? "Comparative Synthesis" : "Detailed")
     });
   };
 
@@ -65,9 +78,8 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
   const stopRecording = () => {
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
-    toast.success("Recording saved and sent for transcription!");
-    // Simulate finding a transcript from recording
-    setUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ"); 
+    toast.info("Voice recording is not yet available. Stay tuned!");
+    setRecordingTime(0);
   };
 
   const handleActionClick = async (title: string) => {
@@ -82,7 +94,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
               provider: "groq", 
               model: "llama-3.3-70b-versatile", 
               language: "English", 
-              style: "Detailed" 
+              style: analysisStyle || "Detailed" 
             });
           }
         }
@@ -100,7 +112,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
   };
 
   const actions = [
-    { title: "Upload", desc: "File, audio, video", icon: <Upload className="h-5 w-5" />, badge: "Popular", badgeColor: "bg-green-100 text-green-700" },
+    { title: "Upload", desc: isUploading ? "Uploading..." : "File, audio, video", icon: isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />, badge: isUploading ? undefined : "Popular", badgeColor: "bg-green-100 text-green-700" },
     { title: "Link", desc: "YouTube, Website", icon: <LinkIcon className="h-5 w-5" />, active: true },
     { title: "Paste", desc: "Copied Text", icon: <Clipboard className="h-5 w-5" /> },
     { title: "Record", desc: isRecording ? "Stop Recording" : "Record Lecture", icon: isRecording ? <StopCircle className="h-5 w-5 text-red-500 animate-pulse" /> : <Mic className="h-5 w-5" /> }
@@ -113,28 +125,58 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-12 px-4">
+    <div className="w-full max-w-4xl mx-auto py-16 px-4">
       <input 
         type="file" 
         ref={fileInputRef} 
         className="hidden" 
-        onChange={(e) => {
+        aria-label="Upload file"
+        accept="audio/*,video/*,.pdf,.txt,.md"
+        onChange={async (e) => {
           const file = e.target.files?.[0];
-          if (file) {
-            toast.success(`Processing file: ${file.name}`);
-            // Mocking a result for the dummy removal
-            setUrl(`Local File: ${file.name} - Transcription Processing...`);
+          if (!file) return;
+          if (!getAuthToken()) {
+            toast.error("Please sign in to upload files");
+            return;
+          }
+          setIsUploading(true);
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ""}/videos/upload`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${getAuthToken()}` },
+              body: formData,
+            });
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.detail || "Upload failed");
+            }
+            const data = await res.json();
+            toast.success(`Uploaded: ${file.name}`);
+            if (data.id) onUploadComplete?.(data.id);
+          } catch (err: any) {
+            toast.error(err.message || "Upload failed. Please try again.");
+          } finally {
+            setIsUploading(false);
+            e.target.value = "";
           }
         }}
       />
 
-      <motion.h1 
-        initial={{ opacity: 0, y: -20 }}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-4xl md:text-5xl font-black text-center mb-12 tracking-tight"
+        className="text-center mb-12"
       >
-        Ready to learn, Shivam?
-      </motion.h1>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">AI-Powered Learning</p>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-gradient-to-b from-gray-900 to-gray-500 bg-clip-text text-transparent">
+          What do you want to learn?
+        </h1>
+        <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
+          Paste a YouTube link and get instant summaries, flashcards, quizzes, and more.
+        </p>
+      </motion.div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {actions.map((action, i) => (
@@ -144,6 +186,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
             onClick={() => handleActionClick(action.title)}
+            aria-label={action.title}
             className={cn(
               "p-6 rounded-3xl border text-left transition-all relative group h-32 flex flex-col justify-between",
               (action.active || (action.title === "Record" && isRecording))
@@ -153,7 +196,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
           >
             {action.badge && (
               <span className={cn(
-                "absolute top-4 right-4 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight",
+                "absolute top-4 right-4 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase",
                 action.badgeColor
               )}>
                 {action.badge}
@@ -210,6 +253,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
               type="text"
               value={url}
               onChange={e => setUrl(e.target.value)}
+              aria-label="YouTube video URL"
               onPaste={e => {
                 const text = e.clipboardData.getData('text');
                 const match = text.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
@@ -219,7 +263,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
                       provider: "groq", 
                       model: "llama-3.3-70b-versatile", 
                       language: "English", 
-                      style: "Detailed" 
+                      style: analysisStyle || "Detailed" 
                     });
                   }, 50);
                 }
@@ -243,6 +287,7 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
             <button
               type="submit"
               disabled={isLoading || (!url.trim() && urls.length === 0)}
+              aria-label="Analyze video"
               className={cn(
                 "w-10 h-10 rounded-full flex items-center justify-center transition-all",
                 (url.trim() || urls.length > 0) ? "bg-black text-white" : "bg-gray-100 text-gray-300"
@@ -258,10 +303,35 @@ const UrlInput = ({ onSubmit, isLoading }: UrlInputProps) => {
         </motion.form>
         
         {urls.length > 1 && (
-          <p className="text-center text-[10px] font-black uppercase tracking-widest text-green-600 animate-pulse">
+          <p className="text-center text-xs font-medium text-green-600 animate-pulse">
             Synthesis Mode: Comparative analysis of {urls.length + (url.trim() ? 1 : 0)} videos enabled
           </p>
         )}
+
+        {/* Analysis Style Selector */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="flex items-center gap-2 justify-center flex-wrap pt-2"
+        >
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Style:</span>
+          {ANALYSIS_STYLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onStyleChange?.(s.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                (analysisStyle || "") === s.id
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+              )}
+              title={s.desc}
+            >
+              {s.label}
+            </button>
+          ))}
+        </motion.div>
       </div>
     </div>
   );

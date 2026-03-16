@@ -54,15 +54,25 @@ const Flashcards = ({ cards }: FlashcardsProps) => {
   };
 
   return (
-    <div className="max-w-xl mx-auto py-8 px-4 flex flex-col items-center">
+    <div 
+      className="max-w-xl mx-auto py-8 px-4 flex flex-col items-center"
+      role="region"
+      aria-label={`Flashcard ${currentIndex + 1} of ${cards.length}`}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowRight") handleNext();
+        else if (e.key === "ArrowLeft") handlePrev();
+        else if (e.key === " " || e.key === "Enter") { e.preventDefault(); setIsFlipped(!isFlipped); }
+      }}
+      tabIndex={0}
+    >
       <div className="w-full flex items-center justify-between mb-8">
          <div className="flex items-center gap-3">
             <div className="p-2.5 bg-black rounded-2xl shadow-lg rotate-3 group-hover:rotate-0 transition-all">
                <Brain className="h-5 w-5 text-white" />
             </div>
             <div>
-               <h3 className="text-xl font-black italic uppercase tracking-tighter">Study Cards</h3>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">
+               <h3 className="text-xl font-bold">Study Cards</h3>
+               <p className="text-[10px] font-medium text-muted-foreground leading-none">
                   {mastered.length} of {cards.length} Mastered
                </p>
             </div>
@@ -98,20 +108,20 @@ const Flashcards = ({ cards }: FlashcardsProps) => {
             >
               {/* Front */}
               <div className="absolute inset-0 w-full h-full backface-hidden p-8 flex flex-col items-center justify-center bg-white border-2 border-gray-100 rounded-[3rem] shadow-2xl hover:border-black/5 transition-colors">
-                <span className="absolute top-8 left-8 text-[10px] font-black uppercase tracking-widest text-gray-300">Question</span>
+                <span className="absolute top-8 left-8 text-[10px] font-semibold uppercase tracking-wider text-gray-300">Question</span>
                 <p className="text-xl font-bold text-center leading-relaxed">
                   {currentCard.front}
                 </p>
-                <span className="absolute bottom-8 text-[10px] font-black uppercase tracking-widest text-gray-400 animate-pulse">Click to Reveal</span>
+                <span className="absolute bottom-8 text-[10px] font-medium uppercase tracking-wider text-gray-400 animate-pulse">Click or press Space to Reveal</span>
               </div>
 
               {/* Back */}
               <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 p-8 flex flex-col items-center justify-center bg-black text-white rounded-[3rem] shadow-2xl overflow-y-auto">
-                 <span className="absolute top-8 left-8 text-[10px] font-black uppercase tracking-widest text-gray-600">Answer</span>
+                 <span className="absolute top-8 left-8 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Answer</span>
                  <p className="text-lg font-medium text-center leading-relaxed">
                    {currentCard.back}
                  </p>
-                 <span className="absolute bottom-8 text-[10px] font-black uppercase tracking-widest text-gray-600">Click to Flip Back</span>
+                 <span className="absolute bottom-8 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Click to Flip Back</span>
               </div>
             </div>
           </motion.div>
@@ -130,7 +140,7 @@ const Flashcards = ({ cards }: FlashcardsProps) => {
           <button 
             onClick={toggleMastery}
             className={cn(
-              "flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl font-black uppercase tracking-widest text-xs transition-all shadow-lg active:scale-95",
+              "flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl font-semibold text-xs transition-all shadow-lg active:scale-95",
               mastered.includes(currentIndex) 
                 ? "bg-green-500 text-white shadow-green-200" 
                 : "bg-black text-white shadow-gray-200"
@@ -165,27 +175,13 @@ const Flashcards = ({ cards }: FlashcardsProps) => {
                className="h-full bg-black rounded-full" 
             />
           </div>
-          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <div className="flex justify-between text-xs font-medium text-muted-foreground">
             <span>Progress</span>
             <span>{Math.round(progress)}%</span>
           </div>
         </div>
       </div>
 
-      <style>{`
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-        .preserve-3d {
-          transform-style: preserve-3d;
-        }
-        .backface-hidden {
-          backface-visibility: hidden;
-        }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
-        }
-      `}</style>
     </div>
   );
 };

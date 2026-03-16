@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { authApi, setAuthToken } from "@/lib/api";
 import { Github, Mail, Chrome as Google } from "lucide-react";
 
+import { API_BASE_URL } from "@/lib/constants";
+
 export function AuthDialog({ onSuccess }: { onSuccess?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -46,7 +48,7 @@ export function AuthDialog({ onSuccess }: { onSuccess?: () => void }) {
   };
 
   const handleOAuth = (provider: string) => {
-    window.location.href = `http://localhost:8000/api/auth/${provider}/callback`;
+    window.location.href = `${API_BASE_URL}/auth/${provider}/callback`;
   };
 
   return (
@@ -57,59 +59,62 @@ export function AuthDialog({ onSuccess }: { onSuccess?: () => void }) {
           <span>Sign In</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[400px] rounded-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-display font-bold">
+      <DialogContent className="sm:max-w-[400px] rounded-3xl border-gray-100">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-xl font-bold text-foreground">
             {mode === "login" ? "Welcome Back" : "Create Account"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm text-muted-foreground">
             Join 10,000+ learners analyzing videos with AI.
           </DialogDescription>
         </DialogHeader>
+
+        {/* OAuth Buttons */}
+        <div className="flex gap-3 pt-2">
+          <Button variant="outline" className="flex-1 rounded-xl h-11 gap-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all" onClick={() => handleOAuth("google")}>
+            <Google className="h-4 w-4" />
+            <span className="text-sm font-medium">Google</span>
+          </Button>
+          <Button variant="outline" className="flex-1 rounded-xl h-11 gap-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all" onClick={() => handleOAuth("github")}>
+            <Github className="h-4 w-4" />
+            <span className="text-sm font-medium">GitHub</span>
+          </Button>
+        </div>
+
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-gray-100" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-3 text-muted-foreground">Or continue with email</span>
+          </div>
+        </div>
         
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {mode === "register" && (
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} required />
+            <div className="space-y-1.5">
+              <Label htmlFor="name" className="text-xs font-medium text-muted-foreground">Full Name</Label>
+              <Input id="name" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} required className="rounded-xl h-11 border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200" />
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">Email</Label>
+            <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required className="rounded-xl h-11 border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200" />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">Password</Label>
+            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required className="rounded-xl h-11 border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200" />
           </div>
-          <Button type="submit" className="w-full bg-black text-white hover:bg-black/90 rounded-xl py-6" disabled={isLoading}>
-            {isLoading ? "Loading..." : mode === "login" ? "Login" : "Register"}
+          <Button type="submit" className="w-full bg-black text-white hover:bg-gray-900 rounded-xl h-11 font-semibold text-sm mt-1" disabled={isLoading}>
+            {isLoading ? "Loading..." : mode === "login" ? "Sign In" : "Create Account"}
           </Button>
         </form>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-          <Button variant="outline" className="flex-1 rounded-xl" onClick={() => handleOAuth("google")}>
-            <Google className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" className="flex-1 rounded-xl" onClick={() => handleOAuth("github")}>
-            <Github className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <p className="text-center text-sm text-muted-foreground mt-4">
+        <p className="text-center text-sm text-muted-foreground">
           {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
           <button 
             onClick={() => setMode(mode === "login" ? "register" : "login")}
-            className="text-black font-bold hover:underline"
+            className="text-black font-semibold hover:underline"
           >
             {mode === "login" ? "Sign Up" : "Log In"}
           </button>

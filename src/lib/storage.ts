@@ -36,6 +36,7 @@ export interface SummaryData {
   mind_map?: MindMapData;
   flashcards?: { front: string; back: string }[];
   transcript_segments?: { start: number; end: number; text: string }[];
+  learning_context?: { why: string; whatToHowTo: string; bestWay: string };
 }
 
 export interface Metadata {
@@ -65,16 +66,18 @@ export interface Space {
 }
 
 import { apiFetch, getAuthToken } from "./api";
+import { STORAGE_KEYS, MAX_TRANSCRIPT_LENGTH, MAX_HISTORY_ITEMS, UUID_PATTERN } from "./constants";
+import { logger } from "./logger";
 
-const STORAGE_KEYS = {
-  HISTORY: "youlearn_history",
-  SPACES: "youlearn_spaces",
+const STORE = {
+  HISTORY: STORAGE_KEYS.HISTORY,
+  SPACES: STORAGE_KEYS.SPACES,
 };
 
 export const getHistory = (): HistoryItem[] => {
   const token = getAuthToken();
   if (!token) return [];
-  const data = localStorage.getItem(STORAGE_KEYS.HISTORY);
+  const data = localStorage.getItem(STORE.HISTORY);
   return data ? JSON.parse(data) : [];
 };
 
@@ -120,11 +123,11 @@ export const fetchHistory = async (): Promise<HistoryItem[]> => {
           thumbnails: a.video_thumbnail ? [{ url: a.video_thumbnail, width: 1280, height: 720 }] : []
         }
       }));
-      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(mapped));
+      localStorage.setItem(STORE.HISTORY, JSON.stringify(mapped));
       return mapped;
     }
   } catch (e) {
-    console.error("Failed to fetch history", e);
+    logger.error("Failed to fetch history", e);
   }
   return [];
 };
@@ -137,22 +140,22 @@ export const saveHistory = (item: Omit<HistoryItem, "id" | "date">) => {
     const history = getHistory();
     const optimizedItem = {
       ...item,
-      transcript: item.transcript && item.transcript.length > 20000 
-        ? item.transcript.slice(0, 20000) + "... [truncated]" 
+      transcript: item.transcript && item.transcript.length > MAX_TRANSCRIPT_LENGTH 
+        ? item.transcript.slice(0, MAX_TRANSCRIPT_LENGTH) + "... [truncated]" 
         : item.transcript
     };
     
     const newItem: HistoryItem = {
       ...optimizedItem,
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       date: new Date().toISOString(),
       status: "completed", // Local save is usually for manual completion or guest
     };
-    const updatedHistory = [newItem, ...history].slice(0, 50); 
-    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(updatedHistory));
+    const updatedHistory = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS); 
+    localStorage.setItem(STORE.HISTORY, JSON.stringify(updatedHistory));
     return newItem;
   } catch (error) {
-    console.error("Storage error:", error);
+    logger.error("Storage error:", error);
     return null;
   }
 };
@@ -160,7 +163,7 @@ export const saveHistory = (item: Omit<HistoryItem, "id" | "date">) => {
 export const deleteHistory = async (id: string, backend_id?: string) => {
   const history = getHistory();
   const updatedHistory = history.filter((item) => item.id !== id);
-  localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(updatedHistory));
+  localStorage.setItem(STORE.HISTORY, JSON.stringify(updatedHistory));
 
   const token = getAuthToken();
   if (token && backend_id) {
@@ -169,13 +172,13 @@ export const deleteHistory = async (id: string, backend_id?: string) => {
 };
 
 export const clearHistory = async () => {
-  localStorage.removeItem(STORAGE_KEYS.HISTORY);
+  localStorage.removeItem(STORE.HISTORY);
   const token = getAuthToken();
   if (token) {
     try {
       await apiFetch("/analysis/", { method: "DELETE" });
     } catch (e) {
-      console.error("Failed to clear history", e);
+      logger.error("Failed to clear history", e);
     }
   }
 };
@@ -183,7 +186,7 @@ export const clearHistory = async () => {
 export const getSpaces = (): Space[] => {
   const token = getAuthToken();
   if (!token) return [];
-  const data = localStorage.getItem(STORAGE_KEYS.SPACES);
+  const data = localStorage.getItem(STORE.SPACES);
   return data ? JSON.parse(data) : [];
 };
 
@@ -201,11 +204,11 @@ export const fetchSpaces = async (): Promise<Space[]> => {
         videoIds: s.videos ? s.videos.map((v: any) => v.video_id) : [],
         createdAt: s.created_at
       }));
-      localStorage.setItem(STORAGE_KEYS.SPACES, JSON.stringify(backendSpaces));
+      localStorage.setItem(STORE.SPACES, JSON.stringify(backendSpaces));
       return backendSpaces;
     }
   } catch (e) {
-    console.error("Failed to fetch spaces", e);
+    logger.error("Failed to fetch spaces", e);
   }
   return [];
 };
@@ -224,7 +227,7 @@ export const createSpace = async (name: string): Promise<Space | null> => {
       backendSpace = await res.json();
     }
   } catch (e) {
-    console.error("Failed to create space", e);
+    logger.error("Failed to create space", e);
   }
 
   const spacesArr = getSpaces();
@@ -234,7 +237,7 @@ export const createSpace = async (name: string): Promise<Space | null> => {
     videoIds: [],
     createdAt: new Date().toISOString(),
   };
-  localStorage.setItem(STORAGE_KEYS.SPACES, JSON.stringify([...spacesArr, newSpace]));
+  localStorage.setItem(STORE.SPACES, JSON.stringify([...spacesArr, newSpace]));
   return newSpace;
 };
 
@@ -248,7 +251,7 @@ export const addVideoToSpace = async (spaceId: string, videoId: string) => {
         body: JSON.stringify({ video_id: videoId })
       });
     } catch (e) {
-      console.error("Failed to add video to space", e);
+      logger.error("Failed to add video to space", e);
     }
   }
 
@@ -259,38 +262,38 @@ export const addVideoToSpace = async (spaceId: string, videoId: string) => {
     }
     return space;
   });
-  localStorage.setItem(STORAGE_KEYS.SPACES, JSON.stringify(updatedSpaces));
+  localStorage.setItem(STORE.SPACES, JSON.stringify(updatedSpaces));
 };
 
 export const renameSpace = async (id: string, name: string) => {
   const token = getAuthToken();
-  if (token && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+  if (token && id.match(UUID_PATTERN)) {
     try {
       await apiFetch(`/spaces/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ name })
       });
     } catch (e) {
-      console.error("Failed to rename space", e);
+      logger.error("Failed to rename space", e);
     }
   }
 
   const spaces = getSpaces();
   const updatedSpaces = spaces.map((space) => space.id === id ? { ...space, name } : space);
-  localStorage.setItem(STORAGE_KEYS.SPACES, JSON.stringify(updatedSpaces));
+  localStorage.setItem(STORE.SPACES, JSON.stringify(updatedSpaces));
 };
 
 export const deleteSpace = async (id: string) => {
   const token = getAuthToken();
-  if (token && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+  if (token && id.match(UUID_PATTERN)) {
     try {
       await apiFetch(`/spaces/${id}`, { method: "DELETE" });
     } catch (e) {
-      console.error("Failed to delete space", e);
+      logger.error("Failed to delete space", e);
     }
   }
 
   const spaces = getSpaces();
   const updatedSpaces = spaces.filter((space) => space.id !== id);
-  localStorage.setItem(STORAGE_KEYS.SPACES, JSON.stringify(updatedSpaces));
+  localStorage.setItem(STORE.SPACES, JSON.stringify(updatedSpaces));
 };

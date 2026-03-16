@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Send, X, Loader2, Bot, User, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/lib/constants";
+import { getAuthToken } from "@/lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -44,7 +46,7 @@ const ChatbotPanel = ({ transcript, provider = "groq", model = "llama-3.3-70b-ve
     try {
       // Create a temporary video DB ID from the URL/content or use a prop
       // For now we'll pass the video_id when available
-      const backendUrl = "http://localhost:8000";
+      const backendUrl = API_BASE_URL.replace(/\/api$/, "");
       
       const payload = {
         message: userMsg.content,
@@ -62,7 +64,7 @@ const ChatbotPanel = ({ transcript, provider = "groq", model = "llama-3.3-70b-ve
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('token') || ''}`
+          "Authorization": `Bearer ${getAuthToken() || ''}`
         },
         body: JSON.stringify(payload),
       });

@@ -1,30 +1,55 @@
 import { motion } from "framer-motion";
 
+const ShimmerBar = ({ className }: { className?: string }) => (
+  <div className={`relative overflow-hidden bg-gray-100 rounded-lg ${className || ""}`}>
+    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shimmer" />
+  </div>
+);
+
 const LoadingSkeleton = () => {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="space-y-4"
+      className="space-y-6"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading content"
     >
-      <div className="bg-white rounded-3xl p-6 space-y-4 border border-gray-100 shadow-sm">
-        <div className="h-6 w-32 bg-gray-100 rounded-lg animate-pulse" />
+      {/* Overview card */}
+      <div className="bg-white rounded-3xl p-8 space-y-5 border border-gray-100 shadow-sm">
+        <ShimmerBar className="h-7 w-40" />
         <div className="space-y-3">
-          <div className="h-4 w-full bg-gray-50 rounded-lg animate-pulse" />
-          <div className="h-4 w-4/5 bg-gray-50 rounded-lg animate-pulse" />
-          <div className="h-4 w-3/5 bg-gray-50 rounded-lg animate-pulse" />
+          <ShimmerBar className="h-4 w-full" />
+          <ShimmerBar className="h-4 w-[90%]" />
+          <ShimmerBar className="h-4 w-[75%]" />
         </div>
       </div>
-      <div className="bg-white rounded-3xl p-6 space-y-4 border border-gray-100 shadow-sm">
-        <div className="h-6 w-28 bg-gray-100 rounded-lg animate-pulse" />
-        {[1,2,3,4].map(i => (
-          <div key={i} className="h-4 bg-gray-50 rounded-lg animate-pulse" style={{ width: `${80 - i * 10}%` }} />
-        ))}
+
+      {/* Key points card */}
+      <div className="bg-white rounded-3xl p-8 space-y-5 border border-gray-100 shadow-sm">
+        <ShimmerBar className="h-7 w-32" />
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="flex items-start gap-3">
+              <ShimmerBar className="h-5 w-5 rounded-full shrink-0 mt-0.5" />
+              <ShimmerBar className="h-4 flex-1" />
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="bg-white rounded-3xl p-6 space-y-4 border border-gray-100 shadow-sm">
-        <div className="h-6 w-36 bg-gray-100 rounded-lg animate-pulse" />
-        {[1,2,3].map(i => (
-          <div key={i} className="h-12 bg-gray-50 rounded-2xl animate-pulse" />
+
+      {/* Chapters card */}
+      <div className="bg-white rounded-3xl p-8 space-y-5 border border-gray-100 shadow-sm">
+        <ShimmerBar className="h-7 w-36" />
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex gap-4 items-start p-4 rounded-2xl bg-gray-50/50">
+            <ShimmerBar className="h-5 w-12 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <ShimmerBar className="h-5 w-3/4" />
+              <ShimmerBar className="h-3 w-full" />
+            </div>
+          </div>
         ))}
       </div>
     </motion.div>

@@ -1,43 +1,48 @@
 import { 
-  MessageCircle, 
-  Target, 
-  Rocket, 
-  Box, 
   Mic, 
+  Headphones,
+  Video,
   FileText,
-  Search,
-  Sparkles,
-  Zap,
-  Layout,
-  Map,
+  HelpCircle,
   Layers,
-  Clock,
-  ChevronDown,
-  Send
+  StickyNote,
+  GraduationCap,
+  Settings2,
+  Plus,
+  Send,
+  CheckCircle2,
+  Loader2,
+  Brain,
+  Map
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface LearnToolsProps {
   onToolClick?: (toolId: string, value?: string) => void;
+  sets?: { id: string; name: string; date: string; type: string }[];
+  hasQuiz?: boolean;
+  hasFlashcards?: boolean;
+  hasRoadmap?: boolean;
+  hasMindMap?: boolean;
+  isChatLoading?: boolean;
+  isMobile?: boolean;
 }
 
-const LearnTools = ({ onToolClick }: LearnToolsProps) => {
+const LearnTools = ({ onToolClick, sets = [], hasQuiz, hasFlashcards, hasRoadmap, hasMindMap, isChatLoading, isMobile }: LearnToolsProps) => {
   const [question, setQuestion] = useState("");
+  const [lastClicked, setLastClicked] = useState<string | null>(null);
 
   const tools = [
-    { id: 'podcast', name: 'Podcast Mode', icon: <MessageCircle className="h-4 w-4" />, desc: 'Convert to audio dialog', badge: 'AI' },
-    { id: 'quiz', name: 'Interactive Quiz', icon: <Target className="h-4 w-4" />, desc: 'Test your knowledge', active: true },
-    { id: 'roadmap', name: 'Mastery Roadmap', icon: <Rocket className="h-4 w-4" />, desc: 'Step-by-step guide' },
-    { id: 'mindmap', name: 'Mind Map', icon: <Map className="h-4 w-4" />, desc: 'Visual connections' },
-    { id: 'flashcards', name: 'Smart Flashcards', icon: <Layers className="h-4 w-4" />, desc: 'Memory practice' },
-    { id: 'deepdive', name: 'Deep Dive', icon: <Sparkles className="h-4 w-4" />, desc: 'Advanced analysis' },
-  ];
-
-  const suggestedActivities = [
-    { name: 'Explain like I\'m 5', icon: <Zap className="h-3 w-3" /> },
-    { name: 'Critical Review', icon: <FileText className="h-3 w-3" /> },
-    { name: 'Practical Exercise', icon: <Layout className="h-3 w-3" /> },
+    { id: 'podcast', name: 'Podcast', icon: <Headphones className="h-5 w-5" />, type: 'chat' },
+    { id: 'deepdive', name: 'Deep Dive', icon: <Video className="h-5 w-5" />, type: 'chat' },
+    { id: 'roadmap', name: 'Summary', icon: <FileText className="h-5 w-5" />, type: 'scroll', available: hasRoadmap },
+    { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-5 w-5" />, type: 'scroll', available: hasQuiz },
+    { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-5 w-5" />, type: 'scroll', available: hasFlashcards },
+    { id: 'notes', name: 'Notes', icon: <StickyNote className="h-5 w-5" />, type: 'chat' },
+    { id: 'mindmap', name: 'Mind Map', icon: <GraduationCap className="h-5 w-5" />, type: 'scroll', available: hasMindMap },
   ];
 
   const handleAsk = () => {
@@ -47,75 +52,143 @@ const LearnTools = ({ onToolClick }: LearnToolsProps) => {
     }
   };
 
+  const handleToolClick = (toolId: string) => {
+    setLastClicked(toolId);
+    onToolClick?.(toolId);
+  };
+
   return (
-    <aside className="w-80 border-l bg-gray-50/30 h-screen flex flex-col p-6 overflow-y-auto scrollbar-none">
-      <div className="mb-8">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-6">Learning Tools</h3>
-        <div className="grid grid-cols-1 gap-3">
-          {tools.map((tool) => (
-            <button
-              key={tool.id}
-              onClick={() => onToolClick?.(tool.id)}
-              className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 hover:border-gray-300 transition-all text-left shadow-sm hover:shadow-md group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-900 group-hover:bg-white transition-colors border border-gray-50">
-                {tool.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                 <div className="flex items-center justify-between mb-0.5">
-                   <p className="text-sm font-bold text-foreground">{tool.name}</p>
-                   {tool.badge && (
-                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">{tool.badge}</span>
-                   )}
-                 </div>
-                 <p className="text-[10px] text-muted-foreground font-medium">{tool.desc}</p>
-              </div>
-            </button>
-          ))}
+    <aside className={cn(
+      "bg-white flex-col overflow-hidden",
+      isMobile 
+        ? "flex w-full h-auto border-0" 
+        : "hidden lg:flex w-[340px] border-l h-screen"
+    )}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full" />
+          <span className="text-sm font-semibold text-foreground">Learn Tab</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+            <Plus className="h-4 w-4 text-gray-400" />
+          </button>
         </div>
       </div>
 
-      <div className="mb-8">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Suggested Actions</h3>
-        <div className="flex flex-wrap gap-2">
-          {suggestedActivities.map((act, i) => (
+      {/* Generate Section */}
+      <div className="flex-1 overflow-y-auto px-5 py-5 scrollbar-thin">
+        <h3 className="text-xs font-semibold text-muted-foreground mb-4">Generate</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {tools.map((tool) => {
+            const isActive = lastClicked === tool.id && isChatLoading;
+            const isAvailable = tool.type === 'scroll' && tool.available;
+            return (
+              <button
+                key={tool.id}
+                onClick={() => handleToolClick(tool.id)}
+                disabled={isActive}
+                className={cn(
+                  "flex items-center justify-between p-3.5 rounded-xl border transition-all text-left group relative",
+                  isActive 
+                    ? "bg-blue-50 border-blue-200 cursor-wait" 
+                    : "bg-gray-50/80 border-gray-100 hover:bg-gray-100/80 hover:border-gray-200"
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className={cn(
+                    "transition-colors",
+                    isActive ? "text-blue-600 animate-pulse" : "text-gray-600 group-hover:text-gray-900"
+                  )}>
+                    {isActive ? <Loader2 className="h-5 w-5 animate-spin" /> : tool.icon}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{tool.name}</span>
+                </div>
+                {isAvailable ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                ) : tool.type === 'chat' ? (
+                  <span className="text-[9px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">AI</span>
+                ) : (
+                  <Settings2 className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* My Sets Section */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-semibold text-muted-foreground">Generated Content</h3>
+            <span className="text-xs text-muted-foreground">{sets.length}</span>
+          </div>
+          {sets.length > 0 ? (
+            <div className="space-y-2">
+              {sets.map((set) => (
+                <button 
+                  key={set.id} 
+                  onClick={() => handleToolClick(set.type)}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-50/80 border border-gray-100 hover:bg-gray-100/80 transition-all group text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    {set.type === 'quiz' ? <Brain className="h-4 w-4 text-red-400" /> :
+                     set.type === 'flashcards' ? <Layers className="h-4 w-4 text-purple-400" /> :
+                     set.type === 'roadmap' ? <Map className="h-4 w-4 text-purple-400" /> :
+                     <FileText className="h-4 w-4 text-gray-400" />}
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{set.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{set.date}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500 opacity-60" />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="py-10 text-center">
+              <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center mx-auto mb-3 border border-gray-100">
+                <Layers className="h-4 w-4 text-gray-300" />
+              </div>
+              <p className="text-sm font-medium text-gray-400">No sets yet</p>
+              <p className="text-xs text-gray-300 mt-1">Generate flashcards or quizzes to create sets</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ask Anything Input */}
+      <div className="px-5 py-4 border-t border-gray-100">
+        <div className="relative">
+          <input 
+            type="text" 
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyUp={(e) => e.key === "Enter" && handleAsk()}
+            placeholder="Ask anything" 
+            className="w-full h-11 pl-4 pr-20 rounded-xl border border-gray-200 bg-white focus:outline-none focus:border-gray-300 focus:ring-1 focus:ring-gray-200 text-sm transition-all placeholder:text-gray-400"
+          />
+          <div className="absolute inset-y-0 right-2 flex items-center gap-1">
+            {question.trim() ? (
+              <Button 
+                onClick={handleAsk}
+                variant="ghost" 
+                size="icon" 
+                className="h-7 w-7 rounded-lg text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
             <button 
-              key={i} 
-              onClick={() => onToolClick?.("action", act.name)}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] font-bold hover:border-gray-300 transition-all shadow-sm"
+              onClick={() => toast.info("Voice input coming soon!")}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-black transition-colors"
+              aria-label="Voice input (coming soon)"
             >
-              {act.icon}
-              {act.name}
+              <Mic className="h-3 w-3" />
+              Voice
             </button>
-          ))}
+          </div>
         </div>
-      </div>
-
-      <div className="mt-auto">
-        <div className="relative group">
-           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-             <Mic className="h-4 w-4 text-gray-400" />
-           </div>
-           <input 
-             type="text" 
-             value={question}
-             onChange={(e) => setQuestion(e.target.value)}
-             onKeyUp={(e) => e.key === "Enter" && handleAsk()}
-             placeholder="Ask anything about the video..." 
-             className="w-full h-12 pl-12 pr-12 rounded-2xl border border-gray-100 bg-white shadow-sm focus:outline-none focus:border-gray-300 text-sm font-medium transition-all"
-           />
-           <div className="absolute inset-y-0 right-3 flex items-center">
-             <Button 
-               onClick={handleAsk}
-               variant="ghost" 
-               size="icon" 
-               className="h-8 w-8 rounded-xl text-gray-400 hover:text-gray-900 transition-colors"
-             >
-               <Send className="h-4 w-4" />
-             </Button>
-           </div>
-        </div>
-        <p className="text-center text-[9px] text-gray-400 mt-3 font-semibold uppercase tracking-wider">Powered by YouLearn AI</p>
       </div>
     </aside>
   );
