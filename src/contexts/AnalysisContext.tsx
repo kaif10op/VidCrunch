@@ -528,28 +528,38 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     }
 
     if (ON_DEMAND_TOOLS.includes(toolId)) {
-      // Special cases for non-gen tools
+      // Special cases for non-gen tools or specific actions
       if (toolId === "deepdive") {
         setIsChatOpen(true);
-        handleSendMessage("Provide an in-depth academic analysis of this video's content, including key arguments, evidence, critical evaluation, and connections to broader topics.", null, "deepdive");
+        handleSendMessage("Provide an in-depth academic analysis of this video's content...", null, "deepdive");
         toast.info("Generating deep-dive analysis...");
         return;
       }
       if (toolId === "notes") {
         setIsChatOpen(true);
-        handleSendMessage("Create comprehensive study notes from this video. Include key definitions, important concepts, examples mentioned, and a brief summary of each major section.", null, "notes");
+        handleSendMessage("Create comprehensive study notes from this video...", null, "notes");
         toast.info("Generating study notes...");
         return;
       }
-      
-      handleGenerateTool(toolId);
-      return;
-    }
 
-    if (ON_DEMAND_TOOLS.includes(toolId) && value) {
-      setIsChatOpen(true);
-      if (context) setContextSnippet(context);
-      handleSendMessage(value, context, toolId);
+      // Check if already available to avoid redundant generation
+      const toolKeyMap: Record<string, keyof SummaryData> = {
+        'quiz': 'quiz',
+        'roadmap': 'roadmap',
+        'mindmap': 'mind_map',
+        'mind_map': 'mind_map',
+        'flashcards': 'flashcards',
+        'podcast': 'podcastData' as any, // podcastData is at root but we check it differently
+        'summary': 'overview',
+        'synthesis': 'overview'
+      };
+
+      const toolKey = toolKeyMap[toolId];
+      const isAvailable = toolId === 'podcast' ? !!summaryData?.podcast : (toolKey && !!summaryData?.[toolKey]);
+      
+      if (!isAvailable) {
+        handleGenerateTool(toolId);
+      }
       return;
     }
 
@@ -558,7 +568,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       if (context) setContextSnippet(context);
       if (value) handleSendMessage(value, context, toolId);
     }
-  }, [handleGenerateTool, handleSendMessage, setContextSnippet, setIsChatOpen]);
+  }, [handleGenerateTool, handleSendMessage, setContextSnippet, setIsChatOpen, summaryData]);
 
   const handleTimestampClick = useCallback((seconds: number) => {
     if (!iframeRef.current?.contentWindow) return;

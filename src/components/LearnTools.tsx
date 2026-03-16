@@ -9,7 +9,7 @@ import {
   User as UserIcon, Sparkles, X, ChevronLeftCircle,
   Headphones, Video
 } from "lucide-react";
-import { useState, useEffect, useRef, lazy, Suspense, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,7 +54,7 @@ interface LearningContext {
 
 interface LearnToolsProps {
   onToolClick?: (toolId: string, value?: string, context?: string) => void;
-  sets?: { id: string; name: string; date: string; type: string }[];
+  sets?: { id: string; name: string; date: string; type: string; isGenerating?: boolean }[];
   hasQuiz?: boolean;
   hasFlashcards?: boolean;
   hasRoadmap?: boolean;
@@ -171,6 +171,58 @@ const LearnTools = ({
 
   const renderActiveTool = () => {
     switch (activeSidebarTab) {
+      case 'podcast':
+        if (generatingTools.includes('podcast')) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-indigo-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-indigo-900">Creating Audio Edition</h3>
+                 <p className="text-xs font-medium text-gray-400">Our AI is synthesizing your personalized podcast...</p>
+               </div>
+            </div>
+          );
+        }
+        return podcastData ? (
+          <div className="p-6 space-y-6">
+            <div className="flex items-center gap-4 p-6 rounded-[2.5rem] bg-indigo-50 border border-indigo-100 shadow-xl shadow-indigo-500/10">
+              <div className="w-16 h-16 rounded-3xl bg-indigo-600 flex items-center justify-center shadow-lg">
+                <Headphones className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-indigo-900 leading-tight">AI Generated Podcast</h3>
+                <p className="text-sm font-bold text-indigo-400 mt-1 uppercase tracking-widest">Mastery Audio Edition</p>
+              </div>
+            </div>
+            
+            {podcastData.audioUrl && (
+              <div className="p-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                <audio controls className="w-full">
+                  <source src={podcastData.audioUrl} type="audio/mpeg" />
+                  Your browser does not support the audio element.
+                </audio>
+              </div>
+            )}
+
+            {podcastData.script && (
+              <div className="p-8 bg-gray-50/50 border border-gray-100 rounded-[2.5rem] space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Podcast Script</h4>
+                <div className="text-sm font-medium leading-relaxed text-gray-600 italic">
+                  <RichMessage content={podcastData.script} role="assistant" />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-12 text-center">
+            <Button onClick={() => onGenerate?.('podcast')} className="rounded-2xl bg-indigo-600 hover:bg-indigo-700">
+              Generate Podcast
+            </Button>
+          </div>
+        );
+      case 'chapters':
       case 'summary':
         return (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading summary...</div>}>
@@ -187,7 +239,34 @@ const LearnTools = ({
             />
           </Suspense>
         );
+      case 'transcript':
+        return (
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <FileText className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-black tracking-tight">Full Transcript</h3>
+            </div>
+            <div className="p-8 rounded-[2.5rem] bg-gray-50/50 border border-gray-100 text-sm font-medium leading-relaxed text-gray-500">
+              The full transcript is synchronized with the video player. You can jump to any section using the timestamps in the Summary or Chapters view.
+            </div>
+          </div>
+        );
       case 'quiz':
+        if (generatingTools.includes('quiz')) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-rose-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-rose-900">Crafting Quiz</h3>
+                 <p className="text-xs font-medium text-gray-400">Designing questions to test your knowledge...</p>
+               </div>
+            </div>
+          );
+        }
         return quizData ? (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading quiz...</div>}>
             <div className="sidebar-quiz-container scale-[0.85] origin-top -mt-4">
@@ -207,6 +286,19 @@ const LearnTools = ({
           </Suspense>
         ) : null;
       case 'flashcards':
+        if (generatingTools.includes('flashcards')) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-orange-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-orange-200 border-t-orange-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-orange-900">Generating Cards</h3>
+                 <p className="text-xs font-medium text-gray-400">Creating flashcards for spaced repetition...</p>
+               </div>
+            </div>
+          );
+        }
         return flashcardsData ? (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading flashcards...</div>}>
              <div className="scale-[0.85] origin-top -mt-4">
@@ -215,6 +307,19 @@ const LearnTools = ({
           </Suspense>
         ) : null;
       case 'roadmap':
+        if (generatingTools.includes('roadmap')) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-emerald-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-emerald-900">Mapping Knowledge</h3>
+                 <p className="text-xs font-medium text-gray-400">Structuring your personalized learning path...</p>
+               </div>
+            </div>
+          );
+        }
         return roadmapData ? (
           <div className="relative pl-6 pr-2 py-8 space-y-12">
              <div className="absolute left-10 top-12 bottom-12 w-px border-l-2 border-dashed border-gray-100 z-0" />
@@ -422,7 +527,7 @@ const LearnTools = ({
                             key={tool.id}
                             onClick={() => {
                               if (tool.id === 'video') return;
-                              onSidebarTabChange?.(tool.id);
+                              onToolClick?.(tool.id);
                             }}
                             className={cn(
                               "flex items-center justify-between p-3.5 rounded-2xl border transition-all hover:scale-[1.01] active:scale-[0.99] group",
@@ -465,33 +570,43 @@ const LearnTools = ({
                         {sets.length > 0 ? sets.map((set) => (
                           <button 
                             key={set.id} 
-                            onClick={() => onSidebarTabChange?.(set.type)}
-                            className="w-full flex items-center gap-4 p-4 rounded-3xl bg-white border border-gray-50 hover:border-gray-100 hover:shadow-md hover:shadow-black/[0.02] transition-all group"
+                            disabled={set.isGenerating}
+                            onClick={() => onToolClick?.(set.type)}
+                            className={cn(
+                              "w-full flex items-center gap-4 p-4 rounded-3xl bg-white border border-gray-50 transition-all group",
+                              set.isGenerating ? "opacity-60 cursor-not-allowed" : "hover:border-gray-100 hover:shadow-md hover:shadow-black/[0.02]"
+                            )}
                           >
                             <div className={cn(
                               "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
-                              set.type === 'quiz' ? "bg-red-50 text-red-500" : 
-                              set.type === 'roadmap' ? "bg-emerald-50 text-emerald-500" :
-                              set.type === 'flashcards' ? "bg-amber-50 text-amber-500" :
-                              set.type === 'summary' ? "bg-blue-50 text-blue-500" :
-                              "bg-indigo-50 text-indigo-500"
+                              set.isGenerating ? "bg-gray-50 text-gray-400" : (
+                                set.type === 'quiz' ? "bg-red-50 text-red-500" : 
+                                set.type === 'roadmap' ? "bg-emerald-50 text-emerald-500" :
+                                set.type === 'flashcards' ? "bg-amber-50 text-amber-500" :
+                                set.type === 'summary' ? "bg-blue-50 text-blue-500" :
+                                "bg-indigo-50 text-indigo-500"
+                              )
                             )}>
-                               {set.type === 'quiz' ? <HelpCircle className="h-5 w-5" /> : 
-                                set.type === 'roadmap' ? <Target className="h-5 w-5" /> :
-                                set.type === 'flashcards' ? <Layers className="h-5 w-5" /> :
-                                set.type === 'summary' ? <FileText className="h-5 w-5" /> :
-                                <Headphones className="h-5 w-5" />}
+                               {set.isGenerating ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 animate-spin rounded-full" /> : (
+                                 set.type === 'quiz' ? <HelpCircle className="h-5 w-5" /> : 
+                                  set.type === 'roadmap' ? <Target className="h-5 w-5" /> :
+                                  set.type === 'flashcards' ? <Layers className="h-5 w-5" /> :
+                                  set.type === 'summary' ? <FileText className="h-5 w-5" /> :
+                                  <Headphones className="h-5 w-5" />
+                               )}
                             </div>
                             <div className="flex-1 text-left">
                               <p className="text-[13px] font-black text-gray-800 line-clamp-1">{set.name}</p>
                               <p className="text-[10px] font-bold text-gray-400 mt-0.5 opacity-80 uppercase tracking-tighter">
-                                  {set.type === 'quiz' ? '10 questions left • All topics' : 
-                                   set.type === 'summary' ? 'Detailed Summary • All topics' :
-                                   set.type === 'roadmap' ? 'Personalized Learning Path' :
-                                   'Processed Analysis'}
+                                  {set.isGenerating ? 'Content is being generated...' : (
+                                    set.type === 'quiz' ? '10 questions left • All topics' : 
+                                     set.type === 'summary' ? 'Detailed Summary • All topics' :
+                                     set.type === 'roadmap' ? 'Personalized Learning Path' :
+                                     'Processed Analysis'
+                                  )}
                               </p>
                             </div>
-                            <MoreVertical className="h-4 w-4 text-gray-300 opacity-40" />
+                            {!set.isGenerating && <MoreVertical className="h-4 w-4 text-gray-300 opacity-40" />}
                           </button>
                         )) : (
                           <div className="p-10 text-center space-y-3 grayscale opacity-30">

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Play, GraduationCap } from "lucide-react";
@@ -102,6 +102,22 @@ export default function AnalysisPage() {
       return newList;
     });
   };
+
+  const sets = useMemo(() => [
+    { id: 'summary', name: 'Overview & Insights', date: 'Generated', type: 'summary', isGenerating: false },
+    ...(summaryData?.quiz?.length ? [{ id: 'quiz', name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
+    ...(summaryData?.flashcards?.length ? [{ id: 'flashcards', name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
+    ...(summaryData?.roadmap ? [{ id: 'roadmap', name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
+    ...(summaryData?.mind_map ? [{ id: 'mind_map', name: 'Mind Map', date: 'Generated', type: 'mindmap', isGenerating: false }] : []),
+    ...(summaryData?.podcast ? [{ id: 'podcast', name: 'Audio Podcast', date: 'Generated', type: 'podcast', isGenerating: false }] : []),
+    ...(generatingTools.map(toolId => ({
+      id: `gen-${toolId}`,
+      name: `Generating ${toolId.charAt(0).toUpperCase() + toolId.slice(1)}...`,
+      date: 'In Progress',
+      type: toolId,
+      isGenerating: true
+    })))
+  ], [summaryData, generatingTools]);
 
   if (!videoData && !isLoading) {
     return (
@@ -266,8 +282,22 @@ export default function AnalysisPage() {
               )}>
                 <LearnTools 
                   onToolClick={(toolId, value, context) => {
-                    handleToolClick(toolId, value, context);
-                    if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'summary', 'chapters', 'transcript'].includes(toolId)) {
+                    const isAvailable = sets.some(s => s.type === toolId && !s.isGenerating);
+                    
+                    if (value) {
+                      // It's a follow-up or specific action (like hint)
+                      handleToolClick(toolId, value, context);
+                      return;
+                    }
+
+                    // For grid clicks or set clicks:
+                    if (!isAvailable) {
+                      handleGenerateTool(toolId);
+                      return;
+                    }
+
+                    // If available, open the tab
+                    if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'summary', 'chapters', 'transcript', 'podcast', 'notes'].includes(toolId)) {
                       handleOpenTab(toolId);
                     }
                   }} 
@@ -294,13 +324,7 @@ export default function AnalysisPage() {
                   learningContext={summaryData?.learning_context}
                   onTimestampClick={handleTimestampClick}
                   timestamps={summaryData?.timestamps}
-                  sets={summaryData ? [
-                    { id: 'summary', name: 'Overview & Insights', date: 'Generated', type: 'summary' },
-                    ...(summaryData.quiz?.length ? [{ id: 'quiz', name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
-                    ...(summaryData.flashcards?.length ? [{ id: 'flashcards', name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
-                    ...(summaryData.roadmap ? [{ id: 'roadmap', name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
-                    ...(summaryData.mind_map ? [{ id: 'mind_map', name: 'Mind Map', date: 'Generated', type: 'mindmap' }] : []),
-                  ] : []}
+                  sets={sets}
                 />
               </div>
             )}
@@ -341,6 +365,11 @@ export default function AnalysisPage() {
                   </div>
                   <LearnTools 
                     onToolClick={(id, v, c) => { 
+                      const isAvailable = sets.some(s => s.type === id && !s.isGenerating);
+                      if (!isAvailable && !v) {
+                        handleGenerateTool(id);
+                        return;
+                      }
                       handleToolClick(id, v, c); 
                       if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'summary'].includes(id)) {
                         handleOpenTab(id);
@@ -369,13 +398,7 @@ export default function AnalysisPage() {
                     learningContext={summaryData?.learning_context}
                     onTimestampClick={handleTimestampClick}
                     timestamps={summaryData?.timestamps}
-                    sets={[
-                      { id: 'summary-set', name: 'Summary', date: 'Generated', type: 'summary' },
-                      ...(summaryData?.quiz?.length ? [{ id: 'quiz-set', name: `Quiz (${summaryData.quiz.length} questions)`, date: 'Generated', type: 'quiz' }] : []),
-                      ...(summaryData?.flashcards?.length ? [{ id: 'flashcard-set', name: `Flashcards (${summaryData.flashcards.length} cards)`, date: 'Generated', type: 'flashcards' }] : []),
-                      ...(summaryData?.roadmap ? [{ id: 'roadmap-set', name: `Learning Roadmap`, date: 'Generated', type: 'roadmap' }] : []),
-                      ...(summaryData?.mind_map ? [{ id: 'mindmap-set', name: `Mind Map`, date: 'Generated', type: 'mindmap' }] : []),
-                    ]}
+                    sets={sets}
                   />
                 </motion.div>
               </>
