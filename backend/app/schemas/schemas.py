@@ -189,14 +189,14 @@ class SpaceResponse(BaseModel):
     description: Optional[str] = None
     is_public: bool
     video_count: int = 0
-    video_ids: Optional[list[UUID]] = None
+    video_ids: Optional[list[str]] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
 class SpaceAddVideoRequest(BaseModel):
-    video_id: UUID
+    video_id: str
 
 
 # ──────────────────────────────────────────────

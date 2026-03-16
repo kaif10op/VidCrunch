@@ -269,7 +269,7 @@ class SpaceVideo(Base):
 
     # Relationships
     space: Mapped["Space"] = relationship(back_populates="space_videos")
-    video: Mapped["Video"] = relationship(back_populates="space_videos")
+    video: Mapped["Video"] = relationship(back_populates="space_videos", lazy="selectin")
 
     __table_args__ = (
         UniqueConstraint("space_id", "video_id", name="uq_space_video"),

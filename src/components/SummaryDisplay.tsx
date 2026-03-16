@@ -4,7 +4,7 @@ import {
   Clock, Map, FileText, 
   Brain, Target,
   Rocket, Star,
-  ChevronDown
+  ChevronDown, Plus, FolderPlus
 } from "lucide-react";
 import { useState, useEffect, useRef, lazy, Suspense, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -178,7 +178,41 @@ const SummaryDisplay = ({
             <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center border border-gray-100">
               <BookOpen className="h-5 w-5 text-black" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Synthesis Overview</h2>
+            <h2 className="text-xl font-bold text-foreground flex-1">Synthesis Overview</h2>
+            
+            {onAddToSpace && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="rounded-xl h-10 px-4 border-gray-100 hover:border-black hover:bg-black hover:text-white transition-all gap-2 text-[10px] font-bold uppercase tracking-widest"
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" />
+                    Add to Space
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-gray-100 shadow-xl">
+                  {spaces.length > 0 ? (
+                    spaces.map(space => (
+                      <DropdownMenuItem 
+                        key={space.id}
+                        onClick={() => onAddToSpace(space.id)}
+                        className="rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        {space.name}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">No Spaces Found</p>
+                      <p className="text-[9px] text-gray-300">Create one in the sidebar first.</p>
+                    </div>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
           <p className="text-lg font-medium text-gray-500 leading-relaxed max-w-3xl">{overview}</p>
           {tags && tags.length > 0 && (

@@ -201,7 +201,7 @@ export const fetchSpaces = async (): Promise<Space[]> => {
       const backendSpaces = data.map((s: any) => ({
         id: s.id,
         name: s.name,
-        videoIds: s.videos ? s.videos.map((v: any) => v.video_id) : [],
+        videoIds: s.video_ids || [],
         createdAt: s.created_at
       }));
       localStorage.setItem(STORE.SPACES, JSON.stringify(backendSpaces));

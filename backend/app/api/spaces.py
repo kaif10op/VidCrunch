@@ -63,7 +63,7 @@ async def list_spaces(
             description=space.description,
             is_public=space.is_public,
             video_count=video_count,
-            video_ids=[sv.video_id for sv in space.space_videos],
+            video_ids=[sv.video.platform_id or str(sv.video_id) for sv in space.space_videos],
             created_at=space.created_at,
         )
         for space, video_count in result.all()
@@ -116,16 +116,30 @@ async def add_video_to_space(
     if not space_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Space not found")
 
+    # Resolve video_id
+    video_db_id = None
+    try:
+        video_db_id = UUID(req.video_id)
+    except ValueError:
+        # Not a UUID, try searching by platform_id
+        video_result = await db.execute(
+            select(Video.id).where(Video.platform_id == req.video_id)
+        )
+        video_db_id = video_result.scalar_one_or_none()
+        
+    if not video_db_id:
+        raise HTTPException(status_code=404, detail="Video not found")
+
     # Check duplicate
     existing = await db.execute(
         select(SpaceVideo).where(
-            SpaceVideo.space_id == id_uuid, SpaceVideo.video_id == req.video_id
+            SpaceVideo.space_id == id_uuid, SpaceVideo.video_id == video_db_id
         )
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Video already in space")
 
-    db.add(SpaceVideo(space_id=id_uuid, video_id=req.video_id))
+    db.add(SpaceVideo(space_id=id_uuid, video_id=video_db_id))
     return MessageResponse(message="Video added to space")
 
 
@@ -194,7 +208,7 @@ async def update_space(
         description=space.description,
         is_public=space.is_public,
         video_count=video_count,
-        video_ids=[sv.video_id for sv in space.space_videos],
+        video_ids=[sv.video.platform_id or str(sv.video_id) for sv in space.space_videos],
         created_at=space.created_at,
     )
 

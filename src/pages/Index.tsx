@@ -163,11 +163,16 @@ const Index = () => {
       return;
     }
     try {
-      const [userRes, creditRes] = await Promise.all([
+      const [userRes, creditRes, hItems, sItems] = await Promise.all([
         authApi.getMe(),
-        creditApi.getBalance()
+        creditApi.getBalance(),
+        fetchHistory(),
+        fetchSpaces()
       ]);
       
+      setHistoryItems(hItems);
+      setSpaces(sItems);
+
       if (userRes.ok) {
         const userData = await userRes.json();
         setUser(userData);
