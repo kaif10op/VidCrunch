@@ -5,7 +5,7 @@ import {
   Brain, Target,
   Rocket, Star,
   ChevronDown, Plus, FolderPlus, MessageSquare,
-  ChevronUp, Settings2, Share2, MoreVertical
+  ChevronUp, Settings2, Share2, MoreVertical, ChevronRight
 } from "lucide-react";
 import { useState, useEffect, useRef, lazy, Suspense, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ interface SummaryDisplayProps {
   currentTime?: number;
   flashcards?: { front: string; back: string }[];
   transcript_segments?: { start: number; end: number; text: string }[];
-  onToolClick?: (toolId: string) => void;
+  onToolClick?: (toolId: string, value?: string, context?: string) => void;
 }
 
 function parseTimeToSeconds(timeStr: string): number {
@@ -187,17 +187,6 @@ const SummaryDisplay = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
            <button 
-             onClick={() => setActiveTab("synthesis")}
-             className={cn(
-               "flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-               activeTab === "synthesis" ? "bg-white text-black shadow-sm" : "text-gray-400 hover:text-gray-600"
-             )}
-           >
-             <Brain className="h-3.5 w-3.5" />
-             Synthesis
-           </button>
-           <div className="w-px h-4 bg-gray-200" />
-           <button 
              onClick={() => setActiveTab("chapters")}
              className={cn(
                "flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
@@ -246,228 +235,100 @@ const SummaryDisplay = ({
            transition={{ duration: 0.2 }}
            className="bg-gray-50/30 dark:bg-gray-900/10 rounded-[40px] border border-gray-100 dark:border-gray-800 p-8 min-h-[400px]"
         >
-          {activeTab === "synthesis" ? (
-             <div className="space-y-12">
-                <div className="space-y-6">
-                  {overview ? (
-                    <p className="text-lg font-medium text-gray-600 dark:text-gray-400 leading-relaxed max-w-4xl">{overview}</p>
-                  ) : (
-                    <div className="bg-white dark:bg-black rounded-[32px] border border-gray-100 dark:border-gray-800 p-8 flex flex-col items-center justify-center text-center space-y-4 shadow-sm min-h-[200px] w-full">
-                       <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-gray-900 flex items-center justify-center border border-gray-100 dark:border-gray-800">
-                          <Brain className="h-6 w-6 text-black dark:text-white" />
-                       </div>
-                       <div>
-                          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">AI Synthesis</h3>
-                          <p className="text-xs text-gray-400 mt-1">Generate a high-level overview of this video</p>
-                       </div>
-                       <Button 
-                         onClick={() => onToolClick?.("overview")}
-                         className="rounded-xl font-bold bg-black dark:bg-white text-white dark:text-black gap-2"
-                       >
-                          <Rocket className="h-4 w-4" /> Synthesize Overview
-                       </Button>
-                    </div>
-                  )}
-                  {tags && tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {tags.map((tag, i) => (
-                        <span key={i} className="text-[9px] font-black uppercase tracking-widest bg-white dark:bg-gray-900 text-gray-400 px-3 py-1.5 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : overview && (
-                     <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => onToolClick?.("tags")}
-                        className="text-[10px] font-black uppercase tracking-widest text-gray-300 hover:text-black"
-                     >
-                        + Add Tags
-                     </Button>
-                  )}
-                </div>
-
-                {/* Insights Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {keyPoints && keyPoints.length > 0 ? (
-                    <div className="bg-white dark:bg-black rounded-[32px] border border-gray-100 dark:border-gray-800 p-6 space-y-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center border border-amber-100 dark:border-amber-900/30">
-                            <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                          </div>
-                          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Major Insights</h3>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {keyPoints.map((point, i) => (
-                          <div key={i} className="flex items-start gap-3 text-sm font-medium text-gray-500 dark:text-gray-400 leading-relaxed group/item">
-                            <span className="w-5 h-5 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-100 dark:border-gray-800 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black text-black dark:text-white group-hover/item:bg-black dark:group-hover/item:bg-white group-hover/item:text-white dark:group-hover/item:text-black transition-all">
-                              {i + 1}
-                            </span>
-                            <div className="flex flex-wrap items-center gap-x-2">
-                              {point}
-                              <button 
-                                onClick={() => onTimestampClick?.(parseTimeToSeconds(timestamps[i % timestamps.length]?.time || "0:00"))}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[9px] font-black text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 transition-all ml-1"
-                              >
-                                <Clock className="h-2.5 w-2.5" />
-                                {timestamps[i % timestamps.length]?.time || "0:00"}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-white dark:bg-black rounded-[32px] border border-gray-100 dark:border-gray-800 p-8 flex flex-col items-center justify-center text-center space-y-4 shadow-sm min-h-[200px]">
-                       <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center border border-amber-100 dark:border-amber-900/30">
-                          <Lightbulb className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                       </div>
-                       <div>
-                          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Key Insights</h3>
-                          <p className="text-xs text-gray-400 mt-1">Generate main bullet points from this video</p>
-                       </div>
-                       <Button 
-                         onClick={() => onToolClick?.("key_points")}
-                         className="rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white gap-2"
-                       >
-                          <Plus className="h-4 w-4" /> Generate
-                       </Button>
-                    </div>
-                  )}
-
-                  {takeaways && takeaways.length > 0 ? (
-                    <div className="bg-white dark:bg-black rounded-[32px] border border-gray-100 dark:border-gray-800 p-6 space-y-4 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center border border-blue-100 dark:border-blue-900/30">
-                          <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Action Items</h3>
-                      </div>
-                      <div className="space-y-3">
-                        {takeaways.map((item, i) => (
-                          <div key={i} className="flex items-start gap-3 text-sm font-medium text-gray-500 dark:text-gray-400 leading-relaxed group/item">
-                            <div className="mt-2 w-1 h-1 rounded-full bg-blue-500 shrink-0 group-hover/item:scale-150 transition-transform" />
-                            <div className="flex flex-wrap items-center gap-x-2">
-                              {item}
-                              <button 
-                                onClick={() => onTimestampClick?.(0)}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-[9px] font-black text-indigo-400 hover:text-indigo-600 transition-all opacity-0 group-hover/item:opacity-100"
-                              >
-                                <Target className="h-2.5 w-2.5" />
-                                Source
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-white dark:bg-black rounded-[32px] border border-gray-100 dark:border-gray-800 p-8 flex flex-col items-center justify-center text-center space-y-4 shadow-sm min-h-[200px]">
-                       <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center border border-blue-100 dark:border-blue-900/30">
-                          <Target className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                       </div>
-                       <div>
-                          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Action Items</h3>
-                          <p className="text-xs text-gray-400 mt-1">Extract actionable takeaways</p>
-                       </div>
-                       <Button 
-                         onClick={() => onToolClick?.("takeaways")}
-                         className="rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                       >
-                          <Plus className="h-4 w-4" /> Generate
-                       </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Strategic Context */}
-                {resolvedLearningContext && (resolvedLearningContext.why || resolvedLearningContext.whatToHowTo || resolvedLearningContext.bestWay) ? (
-                  <div className="bg-black dark:bg-gray-900 rounded-[32px] p-8 space-y-6 shadow-xl border border-white/5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center border border-white/10 backdrop-blur-md">
-                        <Brain className="h-4 w-4 text-white" />
-                      </div>
-                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">Strategic Context</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {resolvedLearningContext.why && (
-                        <div className="space-y-2">
-                          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-widest">Purpose</h4>
-                          <p className="text-xs font-medium text-white/70 leading-relaxed">{resolvedLearningContext.why}</p>
-                        </div>
-                      )}
-                      {resolvedLearningContext.whatToHowTo && (
-                        <div className="space-y-2">
-                          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-widest">Application</h4>
-                          <p className="text-xs font-medium text-white/70 leading-relaxed">{resolvedLearningContext.whatToHowTo}</p>
-                        </div>
-                      )}
-                      {resolvedLearningContext.bestWay && (
-                        <div className="space-y-2">
-                          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-widest">Way Forward</h4>
-                          <p className="text-xs font-medium text-white/70 leading-relaxed">{resolvedLearningContext.bestWay}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-900 rounded-[32px] p-8 flex items-center justify-between shadow-xl border border-white/5">
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10">
-                          <Brain className="h-6 w-6 text-white/40" />
-                       </div>
-                       <div>
-                          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Strategic Context</h3>
-                          <p className="text-xs text-white/30 mt-1">Get high-level analysis on how to learn this topic</p>
-                       </div>
-                    </div>
-                    <Button 
-                      onClick={() => onToolClick?.("learning_context")}
-                      className="rounded-xl font-bold bg-white text-black hover:bg-gray-100"
-                    >
-                       Analyze Context
-                    </Button>
-                  </div>
-                )}
-             </div>
-          ) : activeTab === "chapters" ? (
+          {activeTab === "chapters" ? (
              <div className="space-y-12">
                {timestamps?.map((ts, i) => (
                   <div key={i} className="group cursor-pointer">
-                     <div className="flex items-center gap-3 mb-4">
-                        <span className="bg-white px-3 py-1 rounded-lg border border-gray-100 text-[10px] font-black tracking-widest text-gray-400 group-hover:text-black transition-colors">{ts.time}</span>
-                        <h3 className="text-xl font-bold text-gray-800">{ts.label}</h3>
-                     </div>
-                     <p className="text-base text-gray-500 leading-relaxed max-w-3xl pl-3 border-l-2 border-transparent group-hover:border-green-500 transition-all">
-                        {keyPoints[i] || "Critical analysis for this segment is being processed. Dive deeper into the transcript for more details."}
-                     </p>
+                    <div className="flex items-start gap-8">
+                       <div className="flex flex-col items-center gap-3">
+                          <button 
+                             onClick={() => onTimestampClick?.(parseTimeToSeconds(ts.time))}
+                             className="w-16 h-10 rounded-2xl bg-white dark:bg-black border border-gray-100 dark:border-gray-800 flex items-center justify-center text-xs font-black shadow-sm group-hover:border-black dark:group-hover:border-white transition-all"
+                          >
+                             {ts.time}
+                          </button>
+                          <div className="w-0.5 flex-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                       </div>
+                       <div className="flex-1 pb-12 group-last:pb-0">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-black dark:group-hover:text-white transition-colors">{ts.label}</h3>
+                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-relaxed">
+                            Deep analysis of {ts.label.toLowerCase()} covering key concepts and practical applications shared in this section.
+                          </p>
+                       </div>
+                    </div>
                   </div>
                ))}
+
+               {/* Add Context-Aware Chat Trigger */}
+               <div className="mt-12 pt-12 border-t border-gray-100 dark:border-gray-800">
+                  <div className="relative group">
+                    <input 
+                      type="text"
+                      placeholder="Ask a follow-up about these chapters..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value;
+                          if (val.trim()) {
+                            onToolClick?.('ask', val, `[Chapters Context]:\n${timestamps?.map(t => `${t.time}: ${t.label}`).join('\n')}`);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                      className="w-full h-16 bg-white dark:bg-black rounded-3xl border border-gray-200 dark:border-gray-800 px-8 pr-16 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all shadow-sm"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-black dark:bg-white flex items-center justify-center cursor-pointer">
+                      <ChevronRight className="h-4 w-4 text-white dark:text-black" />
+                    </div>
+                  </div>
+                </div>
              </div>
           ) : activeTab === "transcripts" ? (
-             <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-4 scrollbar-thin">
-               {transcript_segments?.map((seg, i) => (
-                 <div
-                   key={i}
-                   onClick={() => onTimestampClick && onTimestampClick(seg.start)}
-                   className={cn(
-                     "group cursor-pointer p-4 rounded-2xl transition-all flex gap-6 items-start",
-                     i === activeTranscriptIndex ? "bg-white shadow-md scale-[1.01] border border-gray-100" : "hover:bg-white/50"
-                   )}
-                 >
-                   <span className={cn(
-                     "text-[10px] font-black uppercase tracking-widest shrink-0 mt-1 w-12",
-                     i === activeTranscriptIndex ? "text-green-600" : "text-gray-300"
-                   )}>{Math.floor(seg.start/60)}:{String(Math.floor(seg.start%60)).padStart(2, '0')}</span>
-                   <p className={cn(
-                     "text-sm font-medium leading-relaxed",
-                     i === activeTranscriptIndex ? "text-gray-800" : "text-gray-400"
-                   )}>{seg.text}</p>
-                 </div>
-               ))}
+             <div className="space-y-8">
+               <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-thin">
+                 {transcript_segments?.map((seg, i) => (
+                   <div 
+                     key={i} 
+                     ref={i === activeTranscriptIndex ? activeLineRef : null}
+                     className={cn(
+                       "p-4 rounded-2xl transition-all cursor-pointer flex gap-6 items-start",
+                       i === activeTranscriptIndex ? "bg-white dark:bg-gray-800 shadow-md border border-gray-100 dark:border-gray-700" : "hover:bg-white/50 dark:hover:bg-gray-900/50"
+                     )}
+                     onClick={() => onTimestampClick?.(seg.start)}
+                   >
+                     <span className={cn(
+                       "text-[10px] font-black uppercase tracking-widest shrink-0 mt-1 w-12",
+                       i === activeTranscriptIndex ? "text-green-600" : "text-gray-300"
+                     )}>{Math.floor(seg.start/60)}:{String(Math.floor(seg.start%60)).padStart(2, '0')}</span>
+                     <p className={cn(
+                       "text-sm font-medium leading-relaxed",
+                       i === activeTranscriptIndex ? "text-gray-800 dark:text-gray-100" : "text-gray-400"
+                     )}>{seg.text}</p>
+                   </div>
+                 ))}
+               </div>
+
+               {/* Add Context-Aware Chat Trigger */}
+               <div className="mt-12 pt-12 border-t border-gray-100 dark:border-gray-800">
+                  <div className="relative group">
+                    <input 
+                      type="text"
+                      placeholder="Ask a follow-up about the transcript..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value;
+                          if (val.trim()) {
+                            onToolClick?.('ask', val, `[Transcript Snippet]:\n${transcript?.slice(0, 1000)}...`);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                      className="w-full h-16 bg-white dark:bg-black rounded-3xl border border-gray-200 dark:border-gray-800 px-8 pr-16 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all shadow-sm"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-black dark:bg-white flex items-center justify-center cursor-pointer">
+                      <ChevronRight className="h-4 w-4 text-white dark:text-black" />
+                    </div>
+                  </div>
+                </div>
              </div>
           ) : null}
         </motion.div>

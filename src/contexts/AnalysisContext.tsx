@@ -32,7 +32,7 @@ interface AnalysisContextValue {
   handleExport: (format: "json" | "markdown") => Promise<void>;
   handleLoadHistoryItem: (item: HistoryItem) => Promise<void>;
   handleBackToDashboard: () => void;
-  handleToolClick: (toolId: string, value?: string) => void;
+  handleToolClick: (toolId: string, value?: string, context?: string) => void;
   handleTimestampClick: (seconds: number) => void;
   handleAddToSpace: (spaceId: string) => Promise<void>;
   loadAnalysis: (analysisId: string) => Promise<void>;
@@ -504,40 +504,18 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const handleToolClick = useCallback((toolId: string, value?: string) => {
-    if (["overview", "key_points", "takeaways", "tags", "learning_context", "podcast"].includes(toolId)) {
+  const handleToolClick = useCallback((toolId: string, value?: string, context?: string) => {
+    const ON_DEMAND_TOOLS = [
+      "overview", "key_points", "takeaways", "tags", "learning_context", 
+      "quiz", "roadmap", "mindmap", "mind_map", "flashcards", "podcast"
+    ];
+
+    if (ON_DEMAND_TOOLS.includes(toolId)) {
       handleGenerateTool(toolId);
       return;
     }
 
-    if (["quiz", "roadmap", "mindmap"].includes(toolId)) {
-      const el = document.getElementById(toolId);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
-        toast.success(`Scrolled to ${toolId === "quiz" ? "Quiz" : toolId === "roadmap" ? "Roadmap" : "Mind Map"}`);
-      } else {
-        setIsChatOpen(true);
-        handleSendMessage(
-          toolId === "quiz" ? "Generate a comprehensive quiz with multiple choice questions to test understanding of this video's content." :
-          toolId === "roadmap" ? "Create a step-by-step learning roadmap based on this video's content." :
-          "Create a mind map outline showing the key topics and their relationships from this video."
-        );
-        toast.info("Generating via AI chat...");
-      }
-    } else if (toolId === "flashcards") {
-      const flashcardsTab = document.querySelector('[value="flashcards"]') as HTMLElement;
-      if (flashcardsTab) {
-        flashcardsTab.click();
-        flashcardsTab.scrollIntoView({ behavior: "smooth" });
-        toast.success("Scrolled to Flashcards");
-      } else {
-        setIsChatOpen(true);
-        handleSendMessage("Generate a set of flashcards from this video's key concepts. Format each card with a clear question on the front and a concise answer on the back.");
-        toast.info("Generating flashcards via AI chat...");
-      }
-    } else if (toolId === "podcast") {
-      handleGenerateTool("podcast");
-    } else if (toolId === "deepdive") {
+    if (toolId === "deepdive") {
       setIsChatOpen(true);
       handleSendMessage("Provide an in-depth academic analysis of this video's content, including key arguments, evidence, critical evaluation, and connections to broader topics.");
       toast.info("Generating deep-dive analysis...");
@@ -547,12 +525,13 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       toast.info("Generating study notes...");
     } else if (toolId === "ask") {
       setIsChatOpen(true);
+      if (context) setContextSnippet(context);
       if (value) handleSendMessage(value);
     } else if (toolId === "action" && value) {
       setIsChatOpen(true);
       handleSendMessage(value);
     }
-  }, [handleSendMessage]);
+  }, [handleGenerateTool, handleSendMessage, setContextSnippet]);
 
   const handleTimestampClick = useCallback((seconds: number) => {
     if (!iframeRef.current?.contentWindow) return;

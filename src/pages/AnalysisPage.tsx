@@ -17,7 +17,8 @@ export default function AnalysisPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isMobileLearnOpen, setIsMobileLearnOpen] = useState(false);
-  const [activeSidebarTab, setActiveSidebarTab] = useState("learn");
+  const [activeSidebarTab, setActiveSidebarTab] = useState("synthesis");
+  const [openSidebarTabs, setOpenSidebarTabs] = useState<string[]>(["learn", "synthesis"]);
 
   const {
     videoData,
@@ -84,6 +85,23 @@ export default function AnalysisPage() {
       window.removeEventListener("message", handleMessage);
     };
   }, [videoIds, setCurrentTime]);
+
+  const handleOpenTab = (tabId: string) => {
+    if (!openSidebarTabs.includes(tabId)) {
+      setOpenSidebarTabs(prev => [...prev, tabId]);
+    }
+    setActiveSidebarTab(tabId);
+  };
+
+  const handleCloseTab = (tabId: string) => {
+    setOpenSidebarTabs(prev => {
+      const newList = prev.filter(t => t !== tabId);
+      if (activeSidebarTab === tabId) {
+        setActiveSidebarTab("learn");
+      }
+      return newList;
+    });
+  };
 
   if (!videoData && !isLoading) {
     return (
@@ -237,14 +255,16 @@ export default function AnalysisPage() {
             {!isFocusMode && (
               <div className="hidden lg:block w-[380px] shrink-0 sticky top-6 self-start">
                 <LearnTools 
-                  onToolClick={(toolId, value) => {
-                    handleToolClick(toolId, value);
-                    if (['quiz', 'flashcards', 'roadmap', 'mindmap'].includes(toolId)) {
-                      setActiveSidebarTab(toolId);
+                  onToolClick={(toolId, value, context) => {
+                    handleToolClick(toolId, value, context);
+                    if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'synthesis'].includes(toolId)) {
+                      handleOpenTab(toolId);
                     }
                   }} 
                   activeSidebarTab={activeSidebarTab}
                   onSidebarTabChange={setActiveSidebarTab}
+                  onCloseTab={handleCloseTab}
+                  openTabs={openSidebarTabs}
                   hasQuiz={!!summaryData?.quiz}
                   hasFlashcards={!!summaryData?.flashcards}
                   hasRoadmap={!!summaryData?.roadmap}
@@ -257,7 +277,15 @@ export default function AnalysisPage() {
                   isChatLoading={isChatLoading}
                   onGenerate={handleGenerateTool}
                   generatingTools={generatingTools}
+                  overview={summaryData?.overview}
+                  keyPoints={summaryData?.keyPoints}
+                  takeaways={summaryData?.takeaways}
+                  tags={summaryData?.tags}
+                  learningContext={summaryData?.learning_context}
+                  onTimestampClick={handleTimestampClick}
+                  timestamps={summaryData?.timestamps}
                   sets={summaryData ? [
+                    { id: 'synthesis', name: 'Overview & Insights', date: 'Generated', type: 'synthesis' },
                     ...(summaryData.quiz ? [{ id: 'quiz', name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
                     ...(summaryData.flashcards ? [{ id: 'flashcards', name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
                     ...(summaryData.roadmap ? [{ id: 'roadmap', name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
@@ -302,16 +330,18 @@ export default function AnalysisPage() {
                     <div className="w-10 h-1 rounded-full bg-gray-200" />
                   </div>
                   <LearnTools 
-                    onToolClick={(id, v) => { 
-                      handleToolClick(id, v); 
-                      if (['quiz', 'flashcards', 'roadmap', 'mindmap'].includes(id)) {
-                        setActiveSidebarTab(id);
+                    onToolClick={(id, v, c) => { 
+                      handleToolClick(id, v, c); 
+                      if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'synthesis'].includes(id)) {
+                        handleOpenTab(id);
                       } else {
                         setIsMobileLearnOpen(false); 
                       }
                     }}
                     activeSidebarTab={activeSidebarTab}
                     onSidebarTabChange={setActiveSidebarTab}
+                    onCloseTab={handleCloseTab}
+                    openTabs={openSidebarTabs}
                     hasQuiz={!!summaryData?.quiz?.length}
                     hasFlashcards={!!summaryData?.flashcards?.length}
                     hasRoadmap={!!summaryData?.roadmap}
@@ -321,7 +351,17 @@ export default function AnalysisPage() {
                     roadmapData={summaryData?.roadmap}
                     mindMapData={summaryData?.mind_map}
                     isChatLoading={isChatLoading}
+                    onGenerate={handleGenerateTool}
+                    generatingTools={generatingTools}
+                    overview={summaryData?.overview}
+                    keyPoints={summaryData?.keyPoints}
+                    takeaways={summaryData?.takeaways}
+                    tags={summaryData?.tags}
+                    learningContext={summaryData?.learning_context}
+                    onTimestampClick={handleTimestampClick}
+                    timestamps={summaryData?.timestamps}
                     sets={[
+                      { id: 'synthesis-set', name: 'Synthesis', date: 'Generated', type: 'synthesis' },
                       ...(summaryData?.quiz?.length ? [{ id: 'quiz-set', name: `Quiz (${summaryData.quiz.length} questions)`, date: 'Generated', type: 'quiz' }] : []),
                       ...(summaryData?.flashcards?.length ? [{ id: 'flashcard-set', name: `Flashcards (${summaryData.flashcards.length} cards)`, date: 'Generated', type: 'flashcards' }] : []),
                       ...(summaryData?.roadmap ? [{ id: 'roadmap-set', name: `Learning Roadmap`, date: 'Generated', type: 'roadmap' }] : []),

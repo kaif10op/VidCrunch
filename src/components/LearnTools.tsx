@@ -30,6 +30,7 @@ const QuizTab = lazy(() => import("./QuizTab"));
 const MindMapTab = lazy(() => import("./MindMapTab"));
 const Flashcards = lazy(() => import("./Flashcards"));
 const NotesTool = lazy(() => import("./NotesTool"));
+const SynthesisTab = lazy(() => import("./SynthesisTab"));
 
 interface QuizQuestion {
   question: string;
@@ -49,8 +50,19 @@ interface MindMapData {
   edges: { source: string; target: string; label?: string }[];
 }
 
+interface Timestamp {
+  time: string;
+  label: string;
+}
+
+interface LearningContext {
+  why: string;
+  whatToHowTo: string;
+  bestWay: string;
+}
+
 interface LearnToolsProps {
-  onToolClick?: (toolId: string, value?: string) => void;
+  onToolClick?: (toolId: string, value?: string, context?: string) => void;
   sets?: { id: string; name: string; date: string; type: string }[];
   hasQuiz?: boolean;
   hasFlashcards?: boolean;
@@ -67,7 +79,16 @@ interface LearnToolsProps {
   podcastData?: { audioUrl?: string; script?: string };
   activeSidebarTab?: string;
   onSidebarTabChange?: (tab: string) => void;
+  onCloseTab?: (tabId: string) => void;
+  openTabs?: string[];
   onAIAction?: (action: string, context: string) => void;
+  overview?: string;
+  keyPoints?: string[];
+  takeaways?: string[];
+  tags?: string[];
+  learningContext?: LearningContext;
+  onTimestampClick?: (seconds: number) => void;
+  timestamps?: Timestamp[];
 }
 
 const LearnTools = ({ 
@@ -88,15 +109,24 @@ const LearnTools = ({
   podcastData,
   activeSidebarTab = "learn",
   onSidebarTabChange,
-  onAIAction
+  onCloseTab,
+  openTabs = ["learn", "synthesis"],
+  onAIAction,
+  overview,
+  keyPoints,
+  takeaways,
+  tags,
+  learningContext,
+  onTimestampClick,
+  timestamps
 }: LearnToolsProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [askInput, setAskInput] = useState("");
 
   const tools = [
+    { id: 'synthesis', name: 'Synthesis', icon: <Brain className="h-4 w-4" />, color: 'text-purple-600', bg: 'bg-purple-50', available: !!overview },
     { id: 'podcast', name: 'Podcast', icon: <Headphones className="h-4 w-4" />, color: 'text-indigo-600', bg: 'bg-indigo-50', available: !!podcastData },
     { id: 'video', name: 'Video', icon: <Video className="h-4 w-4" />, color: 'text-blue-600', bg: 'bg-blue-50', available: true },
-    { id: 'summary', name: 'Summary', icon: <FileText className="h-4 w-4" />, color: 'text-sky-600', bg: 'bg-sky-50', available: true },
     { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-4 w-4" />, color: 'text-rose-600', bg: 'bg-rose-50', available: hasQuiz || !!quizData },
     { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-4 w-4" />, color: 'text-orange-600', bg: 'bg-orange-50', available: hasFlashcards || !!flashcardsData },
     { id: 'notes', name: 'Notes', icon: <StickyNote className="h-4 w-4" />, color: 'text-amber-600', bg: 'bg-amber-50', available: true },
@@ -113,23 +143,54 @@ const LearnTools = ({
 
   const handleAsk = () => {
     if (askInput.trim()) {
-      onToolClick?.('ask', askInput.trim());
+      let context = "";
+      if (activeSidebarTab === 'synthesis' && (overview || keyPoints || takeaways)) {
+        context = `[Synthesis Context]:\nOverview: ${overview || "N/A"}\nKey Points: ${keyPoints?.join(", ") || "N/A"}\nTakeaways: ${takeaways?.join(", ") || "N/A"}`;
+      } else if (activeSidebarTab === 'quiz' && quizData) {
+        context = `[Quiz Context]:\n${quizData.map((q, i) => `Q${i+1}: ${q.question}`).join("\n")}`;
+      } else if (activeSidebarTab === 'roadmap' && roadmapData) {
+        context = `[Roadmap Context]:\nTitle: ${roadmapData.title}\nSteps: ${roadmapData.steps.map(s => `${s.step}. ${s.task}`).join(", ")}`;
+      } else if (activeSidebarTab === 'flashcards' && flashcardsData) {
+        context = `[Flashcards Context]:\n${flashcardsData.slice(0, 5).map((f, i) => `Card ${i+1}: ${f.front}`).join("\n")}`;
+      }
+      
+      onToolClick?.('ask', askInput.trim(), context);
       setAskInput("");
     }
   };
 
   const activeTabs = useMemo(() => {
-    const tabs = [{ id: 'learn', name: 'Learn', icon: <LayoutGrid className="h-3 w-3" /> }];
-    if (quizData) tabs.push({ id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-3 w-3" /> });
-    if (flashcardsData) tabs.push({ id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-3 w-3" /> });
-    if (roadmapData) tabs.push({ id: 'roadmap', name: 'Roadmap', icon: <Brain className="h-3 w-3" /> });
-    if (mindMapData) tabs.push({ id: 'mindmap', name: 'Mind Map', icon: <MapIcon className="h-3 w-3" /> });
-    tabs.push({ id: 'notes', name: 'Notes', icon: <StickyNote className="h-3 w-3" /> });
-    return tabs;
-  }, [quizData, flashcardsData, roadmapData, mindMapData]);
+    const allTabs = [
+      { id: 'learn', name: 'Learn', icon: <LayoutGrid className="h-3 w-3" /> },
+      { id: 'synthesis', name: 'Synthesis', icon: <Brain className="h-3 w-3" /> },
+      { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-3 w-3" /> },
+      { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-3 w-3" /> },
+      { id: 'roadmap', name: 'Roadmap', icon: <Brain className="h-3 w-3" /> },
+      { id: 'mindmap', name: 'Mind Map', icon: <MapIcon className="h-3 w-3" /> },
+      { id: 'notes', name: 'Notes', icon: <StickyNote className="h-3 w-3" /> },
+    ];
+    
+    return allTabs.filter(tab => openTabs.includes(tab.id));
+  }, [openTabs]);
 
   const renderActiveTool = () => {
     switch (activeSidebarTab) {
+      case 'synthesis':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading synthesis...</div>}>
+            <SynthesisTab 
+              overview={overview}
+              keyPoints={keyPoints}
+              takeaways={takeaways}
+              tags={tags}
+              learningContext={learningContext}
+              onGenerate={(id) => onGenerate?.(id)}
+              onTimestampClick={onTimestampClick}
+              timestamps={timestamps}
+              isGenerating={generatingTools.length > 0}
+            />
+          </Suspense>
+        );
       case 'quiz':
         return quizData ? (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading quiz...</div>}>
@@ -267,15 +328,15 @@ const LearnTools = ({
                    className="h-3 w-3 ml-2 hover:text-red-400 transition-colors" 
                    onClick={(e) => {
                      e.stopPropagation();
-                     onSidebarTabChange?.('learn');
+                     onCloseTab?.(tab.id);
                    }} 
                  />
                )}
              </button>
            ))}
-           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl bg-gray-50/50">
-              <Plus className="h-4 w-4 text-gray-400" />
-           </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl bg-gray-50/50">
+               <Plus className="h-4 w-4 text-gray-400" />
+            </Button>
         </div>
       </div>
 
