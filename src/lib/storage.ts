@@ -35,6 +35,7 @@ export interface SummaryData {
   roadmap?: { title: string; steps: RoadmapStep[] };
   mind_map?: MindMapData;
   flashcards?: { front: string; back: string }[];
+  podcast?: { audioUrl?: string; script?: string };
   transcript_segments?: { start: number; end: number; text: string }[];
   learning_context?: { why: string; whatToHowTo: string; bestWay: string };
 }

@@ -34,7 +34,7 @@ const FormattedContent = ({ content }: { content: string }) => {
   return (
     <div className="space-y-2">
       {lines.map((line, idx) => {
-        let processedLine = line.trim();
+        const processedLine = line.trim();
         
         // Handle Bullet Points
         if (processedLine.startsWith("* ") || processedLine.startsWith("- ")) {

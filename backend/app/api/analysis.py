@@ -140,7 +140,7 @@ async def delete_analysis(
 @router.post("/{analysis_id}/generate", response_model=AnalysisResponse)
 async def generate_tool(
     analysis_id: UUID,
-    tool_type: str = Query(..., pattern="^(quiz|roadmap|mind_map|flashcards|takeaways|learning_context)$"),
+    tool_type: str = Query(..., pattern="^(overview|key_points|tags|quiz|roadmap|mind_map|flashcards|takeaways|learning_context|podcast)$"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -173,15 +173,14 @@ async def generate_tool(
         "channel": video.channel if video else "Unknown"
     }
 
-    # Call synthesis for just this tool
-    # We can refine synthesize_content to accept a specific tool list, 
-    # but for now we'll just run a slightly targeted synthesis.
+    # Call targeted synthesis for ONLY this tool
     ai_result = await synthesize_content(
         transcript_text=transcript.full_text,
         metadata=metadata,
         expertise=analysis.expertise_level,
         style=analysis.style,
-        minimal_mode=False, # We want full detail for tools
+        minimal_mode=False,
+        tools=[tool_type],
     )
 
     # Update analysis with the new tool
@@ -190,8 +189,8 @@ async def generate_tool(
         await db.commit()
         await db.refresh(analysis)
     else:
-        # If the requested tool wasn't in the generic synthesis (unlikely if prompt is followed)
-        raise HTTPException(status_code=500, detail=f"Failed to generate {tool_type}")
+        # If the requested tool wasn't in the targeted synthesis
+        raise HTTPException(status_code=500, detail=f"Failed to generate {tool_type}. AI returned: {list(ai_result.keys())}")
 
     return AnalysisResponse.model_validate(analysis)
 

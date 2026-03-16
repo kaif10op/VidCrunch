@@ -126,6 +126,7 @@ class AnalysisResponse(BaseModel):
     quiz: Optional[list] = None
     mind_map: Optional[dict] = None
     flashcards: Optional[list] = None
+    podcast: Optional[dict] = None
     learning_context: Optional[dict] = None
     tags: Optional[list] = None
     transcript_segments: Optional[list] = None

@@ -112,3 +112,7 @@ export const analysisApi = {
 export const searchApi = {
   query: (q: string) => apiFetch(`/search/?q=${encodeURIComponent(q)}`),
 };
+
+export const feedbackApi = {
+  submit: (content: string) => apiFetch("/feedback", { method: "POST", body: JSON.stringify({ content }) }),
+};

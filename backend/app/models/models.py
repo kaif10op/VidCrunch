@@ -209,6 +209,7 @@ class Analysis(Base):
     quiz: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     mind_map: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     flashcards: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    podcast: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     learning_context: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     tags: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 

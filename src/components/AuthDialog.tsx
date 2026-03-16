@@ -18,7 +18,7 @@ import { Github, Mail, Chrome as Google } from "lucide-react";
 
 import { API_BASE_URL } from "@/lib/constants";
 
-export function AuthDialog({ onSuccess }: { onSuccess?: () => void }) {
+export function AuthDialog({ onSuccess, trigger }: { onSuccess?: () => void; trigger?: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -55,10 +55,12 @@ export function AuthDialog({ onSuccess }: { onSuccess?: () => void }) {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full justify-start gap-3 rounded-2xl">
-          <Mail className="h-4 w-4" />
-          <span>Sign In</span>
-        </Button>
+        {trigger || (
+          <Button variant="outline" className="w-full justify-start gap-3 rounded-2xl">
+            <Mail className="h-4 w-4" />
+            <span>Sign In</span>
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-none bg-white/80 backdrop-blur-2xl rounded-[32px] shadow-2xl ring-1 ring-black/5">
         <div className="relative">
