@@ -72,6 +72,7 @@ export interface Space {
 import { apiFetch, getAuthToken } from "./api";
 import { STORAGE_KEYS, MAX_TRANSCRIPT_LENGTH, MAX_HISTORY_ITEMS, UUID_PATTERN } from "./constants";
 import { logger } from "./logger";
+import { transformBackendAnalysis, safeJSONParse } from "./transformers";
 
 const STORE = {
   HISTORY: STORAGE_KEYS.HISTORY,
@@ -81,8 +82,7 @@ const STORE = {
 export const getHistory = (): HistoryItem[] => {
   const token = getAuthToken();
   if (!token) return [];
-  const data = localStorage.getItem(STORE.HISTORY);
-  return data ? JSON.parse(data) : [];
+  return safeJSONParse(localStorage.getItem(STORE.HISTORY), []);
 };
 
 export const fetchHistory = async (): Promise<HistoryItem[]> => {
@@ -93,42 +93,34 @@ export const fetchHistory = async (): Promise<HistoryItem[]> => {
     const res = await apiFetch("/analysis/");
     if (res.ok) {
       const data = await res.json();
-      const mapped = data.map((a: any) => ({
-        id: a.id,
-        title: a.video_title || "Video Analysis",
-        date: a.created_at,
-        status: a.status,
-        videoIds: [a.video_platform_id || a.video_id], // Platform ID is critical for player
-        videoData: {
-          title: a.video_title || "Untitled",
-          channel: "YouTube",
-          duration: "N/A",
-          views: "N/A",
-          likes: "N/A",
-          published: a.created_at
-        },
-        summaryData: {
-          overview: a.overview || "",
-          keyPoints: a.key_points || [],
-          takeaways: a.takeaways || [],
-          timestamps: (a.timestamps || []).map((t: any) => ({ time: t.timestamp || t.time, label: t.topic || t.label })),
-          tags: a.tags || [],
-          quiz: a.quiz,
-          roadmap: a.roadmap,
-          mind_map: a.mind_map,
-          flashcards: a.flashcards,
-          glossary: a.glossary,
-          resources: a.resources,
-          transcript_segments: a.transcript_segments
-        },
-        transcript: null,
-        metadata: {
-          title: a.video_title || "Untitled",
-          channel: "YouTube",
-          duration: "N/A",
-          thumbnails: a.video_thumbnail ? [{ url: a.video_thumbnail, width: 1280, height: 720 }] : []
-        }
-      }));
+
+      // Transform each analysis using the shared transformer
+      const mapped: HistoryItem[] = data.map((a: any) => {
+        const { videoData, summaryData, metadata, videoIds } = transformBackendAnalysis(a);
+
+        return {
+          id: a.id,
+          title: a.video_title || videoData.title,
+          date: a.created_at,
+          status: a.status,
+          videoIds,
+          videoData: {
+            ...videoData,
+            // Preserve original video_data if available (populated from summary)
+            title: a.video_title || videoData.title,
+          },
+          summaryData,
+          transcript: null,
+          metadata: {
+            ...metadata,
+            title: a.video_title || metadata.title,
+            thumbnails: a.video_thumbnail
+              ? [{ url: a.video_thumbnail, width: 1280, height: 720 }]
+              : metadata.thumbnails
+          }
+        };
+      });
+
       localStorage.setItem(STORE.HISTORY, JSON.stringify(mapped));
       return mapped;
     }
@@ -192,8 +184,7 @@ export const clearHistory = async () => {
 export const getSpaces = (): Space[] => {
   const token = getAuthToken();
   if (!token) return [];
-  const data = localStorage.getItem(STORE.SPACES);
-  return data ? JSON.parse(data) : [];
+  return safeJSONParse(localStorage.getItem(STORE.SPACES), []);
 };
 
 export const fetchSpaces = async (): Promise<Space[]> => {

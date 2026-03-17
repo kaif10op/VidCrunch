@@ -51,25 +51,29 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="relative w-full h-full group cursor-pointer"
-              onClick={() => setIsPlaying(true)}
             >
-              <img
-                src={thumbnail}
-                alt={title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-black shadow-xl transform transition-all group-hover:scale-110 border border-white" role="button" aria-label={`Play ${title}`}>
-                  <Play className="h-6 w-6 fill-current ml-1" />
+              <button
+                onClick={() => setIsPlaying(true)}
+                className="relative w-full h-full group cursor-pointer border-none p-0 bg-transparent"
+                aria-label={`Play ${title}`}
+              >
+                <img
+                  src={thumbnail}
+                  alt=""
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-black shadow-xl transform transition-all group-hover:scale-110 border border-white">
+                    <Play className="h-6 w-6 fill-current ml-1" />
+                  </div>
                 </div>
-              </div>
-              {duration && duration !== "N/A" && (
-                <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-md">
-                  {duration}
-                </div>
-              )}
+                {duration && duration !== "N/A" && (
+                  <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-md">
+                    {duration}
+                  </div>
+                )}
+              </button>
             </motion.div>
           )}
         </AnimatePresence>

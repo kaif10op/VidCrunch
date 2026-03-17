@@ -2,6 +2,7 @@
 
 from uuid import UUID
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from app.schemas.schemas import AnalysisDetailResponse, AnalysisResponse, Messag
 from app.services.ai_pipeline import synthesize_content
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/{analysis_id}", response_model=AnalysisDetailResponse)
@@ -206,15 +208,19 @@ async def generate_tool(
     }
 
     # Call targeted synthesis for ONLY this tool
-    ai_result = await synthesize_content(
-        transcript_text=transcript.full_text,
-        metadata=metadata,
-        expertise=analysis.expertise_level,
-        style=analysis.style,
-        minimal_mode=False,
-        tools=[tool_type],
-        existing_data=existing_context,
-    )
+    try:
+        ai_result = await synthesize_content(
+            transcript_text=transcript.full_text,
+            metadata=metadata,
+            expertise=analysis.expertise_level,
+            style=analysis.style,
+            minimal_mode=False,
+            tools=[tool_type],
+            existing_data=existing_context,
+        )
+    except Exception as e:
+        logger.error(f"AI generation failed: {e}")
+        raise HTTPException(status_code=500, detail="AI generation error: " + str(e))
 
     # Update analysis with the new tool
     if tool_type in ai_result:

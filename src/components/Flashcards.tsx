@@ -36,10 +36,10 @@ interface FlashcardsProps {
   onClearExplanation?: () => void;
 }
 
-const Flashcards = ({ 
-  cards: initialCards, 
-  onAIAction, 
-  onGenerateMore, 
+const Flashcards = ({
+  cards: initialCards,
+  onAIAction,
+  onGenerateMore,
   isGenerating,
   aiExplanation,
   onClearExplanation
@@ -58,6 +58,38 @@ const Flashcards = ({
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [displayedExplanation, setDisplayedExplanation] = useState<string>("");
 
+  // Memoized handlers
+  const handleNext = useCallback(() => {
+    setIsFlipped(false);
+    if (currentIndex === cards.length - 1) {
+      setTimeout(() => setIsFinished(true), 150);
+      return;
+    }
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % cards.length);
+      setShowHint(null);
+    }, 150);
+  }, [currentIndex, cards.length]);
+
+  const handlePrev = useCallback(() => {
+    setIsFlipped(false);
+    if (currentIndex === 0) return;
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
+      setShowHint(null);
+    }, 150);
+  }, [currentIndex, cards.length]);
+
+  const toggleMastered = useCallback(() => {
+    if (mastered.includes(currentIndex)) {
+      setMastered(mastered.filter(i => i !== currentIndex));
+    } else {
+      setMastered([...mastered, currentIndex]);
+      if (studyMode === 'spaced') handleNext();
+    }
+  }, [currentIndex, mastered, studyMode, handleNext]);
+
+  // Effects
   useEffect(() => {
     if (initialCards.length > lastCount) {
       setShowAdditionBadge(true);
@@ -71,41 +103,6 @@ const Flashcards = ({
   useEffect(() => {
     onClearExplanation?.();
   }, [currentIndex, onClearExplanation]);
-
-  if (!cards || cards.length === 0) return null;
-
-  const currentCard = cards[currentIndex];
-  const progress = ((currentIndex + 1) / cards.length) * 100;
-
-  const handleNext = () => {
-    setIsFlipped(false);
-    if (currentIndex === cards.length - 1) {
-      setTimeout(() => setIsFinished(true), 150);
-      return;
-    }
-    setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % cards.length);
-      setShowHint(null);
-    }, 150);
-  };
-
-  const handlePrev = () => {
-    setIsFlipped(false);
-    if (currentIndex === 0) return;
-    setTimeout(() => {
-      setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
-      setShowHint(null);
-    }, 150);
-  };
-
-  const toggleMastered = useCallback(() => {
-    if (mastered.includes(currentIndex)) {
-      setMastered(mastered.filter(i => i !== currentIndex));
-    } else {
-      setMastered([...mastered, currentIndex]);
-      if (studyMode === 'spaced') handleNext();
-    }
-  }, [currentIndex, mastered, studyMode, handleNext]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -139,7 +136,7 @@ const Flashcards = ({
           break;
         case 'e':
           setIsEditing(true);
-          setEditData({ front: currentCard.front, back: currentCard.back });
+          setEditData({ front: cards[currentIndex]?.front || "", back: cards[currentIndex]?.back || "" });
           break;
         case 'r':
           setCurrentIndex(0);
@@ -158,7 +155,13 @@ const Flashcards = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, isEditing, isFlipped, mastered, studyMode, cards, currentCard, isGenerating, onGenerateMore, toggleMastered, handleNext, handlePrev]);
+  }, [currentIndex, isEditing, isFlipped, mastered, studyMode, cards, isGenerating, onGenerateMore, toggleMastered, handleNext, handlePrev]);
+
+  // Early return after all hooks
+  if (!cards || cards.length === 0) return null;
+
+  const currentCard = cards[currentIndex];
+  const progress = ((currentIndex + 1) / cards.length) * 100;
 
   const handleEditSave = () => {
     const newCards = [...cards];

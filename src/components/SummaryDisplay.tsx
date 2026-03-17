@@ -276,9 +276,10 @@ const SummaryDisplay = ({
                {/* Add Context-Aware Chat Trigger */}
                <div className="mt-12 pt-12 border-t border-gray-100 dark:border-gray-800">
                   <div className="relative group">
-                    <input 
+                    <input
                       type="text"
                       placeholder="Ask a follow-up about the transcript..."
+                      aria-label="Ask a question about the transcript"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           const val = (e.target as HTMLInputElement).value;

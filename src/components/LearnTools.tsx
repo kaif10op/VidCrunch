@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { RichMessage } from "./RichMessage";
 import { useAnalysisContext } from "@/contexts/AnalysisContext";
 import { AnimatePresence, motion } from "framer-motion";
+import { TOOL_IDS, UTILITY_TOOLS } from "@/lib/toolConstants";
 
 const QuizTab = lazy(() => import("./QuizTab"));
 const MindMapTab = lazy(() => import("./MindMapTab"));
@@ -145,31 +146,31 @@ const LearnTools = ({
   // Removed auto-chat transition to keep users in the "Page" view
 
   const tools = [
-    { id: 'podcast', name: 'Podcast', icon: <Headphones className="h-4 w-4" />, color: 'text-indigo-600', bg: 'bg-indigo-50', available: !!podcastData },
-    { id: 'video', name: 'Video', icon: <Video className="h-4 w-4" />, color: 'text-blue-600', bg: 'bg-blue-50', available: true },
-    { id: 'summary', name: 'Summary', icon: <FileText className="h-4 w-4" />, color: 'text-blue-500', bg: 'bg-blue-50', available: !!overview },
-    { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-4 w-4" />, color: 'text-rose-500', bg: 'bg-rose-50', available: hasQuiz || !!quizData },
-    { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-4 w-4" />, color: 'text-orange-500', bg: 'bg-orange-50', available: hasFlashcards || !!flashcardsData },
-    { id: 'notes', name: 'Notes', icon: <StickyNote className="h-4 w-4" />, color: 'text-amber-500', bg: 'bg-amber-50', available: true },
-    { id: 'roadmap', name: 'Lesson Plan', icon: <Rocket className="h-4 w-4" />, color: 'text-emerald-500', bg: 'bg-emerald-50', available: hasRoadmap || !!roadmapData, isNew: true },
-    { id: 'mindmap', name: 'Mind Map', icon: <MapIcon className="h-4 w-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50', available: hasMindMap || !!mindMapData },
-    { id: 'glossary', name: 'Glossary', icon: <Library className="h-4 w-4" />, color: 'text-purple-600', bg: 'bg-purple-50', available: true },
-    { id: 'resources', name: 'Resources', icon: <BookMarked className="h-4 w-4" />, color: 'text-cyan-600', bg: 'bg-cyan-50', available: true },
+    { id: TOOL_IDS.PODCAST, name: 'Podcast', icon: <Headphones className="h-4 w-4" />, color: 'text-indigo-600', bg: 'bg-indigo-50', available: !!podcastData },
+    { id: TOOL_IDS.VIDEO, name: 'Video', icon: <Video className="h-4 w-4" />, color: 'text-blue-600', bg: 'bg-blue-50', available: true },
+    { id: TOOL_IDS.SUMMARY, name: 'Summary', icon: <FileText className="h-4 w-4" />, color: 'text-blue-500', bg: 'bg-blue-50', available: !!overview },
+    { id: TOOL_IDS.QUIZ, name: 'Quiz', icon: <HelpCircle className="h-4 w-4" />, color: 'text-rose-500', bg: 'bg-rose-50', available: hasQuiz || !!quizData },
+    { id: TOOL_IDS.FLASHCARDS, name: 'Flashcards', icon: <Layers className="h-4 w-4" />, color: 'text-orange-500', bg: 'bg-orange-50', available: hasFlashcards || !!flashcardsData },
+    { id: TOOL_IDS.NOTES, name: 'Notes', icon: <StickyNote className="h-4 w-4" />, color: 'text-amber-500', bg: 'bg-amber-50', available: true },
+    { id: TOOL_IDS.ROADMAP, name: 'Lesson Plan', icon: <Rocket className="h-4 w-4" />, color: 'text-emerald-500', bg: 'bg-emerald-50', available: hasRoadmap || !!roadmapData, isNew: true },
+    { id: TOOL_IDS.MIND_MAP, name: 'Mind Map', icon: <MapIcon className="h-4 w-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50', available: hasMindMap || !!mindMapData },
+    { id: TOOL_IDS.GLOSSARY, name: 'Glossary', icon: <Library className="h-4 w-4" />, color: 'text-purple-600', bg: 'bg-purple-50', available: true },
+    { id: TOOL_IDS.RESOURCES, name: 'Resources', icon: <BookMarked className="h-4 w-4" />, color: 'text-cyan-600', bg: 'bg-cyan-50', available: true },
   ];
 
   const handleAsk = () => {
     if (askInput.trim()) {
       let context = "";
-      if (activeSidebarTab === 'summary' && (overview || keyPoints || takeaways)) {
+      if (activeSidebarTab === TOOL_IDS.SUMMARY && (overview || keyPoints || takeaways)) {
         context = `[Summary Context]:\nOverview: ${overview || "N/A"}\nKey Points: ${keyPoints?.join(", ") || "N/A"}\nTakeaways: ${takeaways?.join(", ") || "N/A"}`;
-      } else if (activeSidebarTab === 'quiz' && quizData) {
+      } else if (activeSidebarTab === TOOL_IDS.QUIZ && quizData) {
         context = `[Quiz Context]:\n${quizData.map((q, i) => `Q${i+1}: ${q.question}`).join("\n")}`;
-      } else if (activeSidebarTab === 'roadmap' && roadmapData) {
+      } else if (activeSidebarTab === TOOL_IDS.ROADMAP && roadmapData) {
         context = `[Roadmap Context]:\nTitle: ${roadmapData.title}\nSteps: ${roadmapData.steps.map(s => `${s.step}. ${s.task}`).join(", ")}`;
-      } else if (activeSidebarTab === 'flashcards' && flashcardsData) {
+      } else if (activeSidebarTab === TOOL_IDS.FLASHCARDS && flashcardsData) {
         context = `[Flashcards Context]:\n${flashcardsData.slice(0, 5).map((f, i) => `Card ${i+1}: ${f.front}`).join("\n")}`;
       }
-      
+
       onToolClick?.(activeSidebarTab, askInput.trim(), context);
       setAskInput("");
     }
@@ -178,28 +179,28 @@ const LearnTools = ({
   const activeTabs = useMemo(() => {
     const allTabs = [
       { id: 'learn', name: 'Learn', icon: <LayoutGrid className="h-3 w-3" /> },
-      { id: 'synthesis', name: 'Synthesis', icon: <Brain className="h-3 w-3" /> },
-      { id: 'summary', name: 'Summary', icon: <FileText className="h-3 w-3" /> },
-      { id: 'chapters', name: 'Chapters', icon: <List className="h-3 w-3" /> },
-      { id: 'transcript', name: 'Transcript', icon: <FileText className="h-3 w-3" /> },
-      { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-3 w-3" /> },
-      { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-3 w-3" /> },
-      { id: 'roadmap', name: 'Roadmap', icon: <Brain className="h-3 w-3" /> },
-      { id: 'mindmap', name: 'Mind Map', icon: <MapIcon className="h-3 w-3" /> },
-      { id: 'notes', name: 'Notes', icon: <StickyNote className="h-3 w-3" /> },
-      { id: 'video', name: 'Video', icon: <Video className="h-3 w-3" /> },
-      { id: 'glossary', name: 'Glossary', icon: <Library className="h-3 w-3" /> },
-      { id: 'resources', name: 'Resources', icon: <BookMarked className="h-3 w-3" /> },
-      { id: 'podcast', name: 'Podcast', icon: <Headphones className="h-3 w-3" /> },
+      { id: TOOL_IDS.SYNTHESIS, name: 'Synthesis', icon: <Brain className="h-3 w-3" /> },
+      { id: TOOL_IDS.SUMMARY, name: 'Summary', icon: <FileText className="h-3 w-3" /> },
+      { id: TOOL_IDS.CHAPTERS, name: 'Chapters', icon: <List className="h-3 w-3" /> },
+      { id: TOOL_IDS.TRANSCRIPT, name: 'Transcript', icon: <FileText className="h-3 w-3" /> },
+      { id: TOOL_IDS.QUIZ, name: 'Quiz', icon: <HelpCircle className="h-3 w-3" /> },
+      { id: TOOL_IDS.FLASHCARDS, name: 'Flashcards', icon: <Layers className="h-3 w-3" /> },
+      { id: TOOL_IDS.ROADMAP, name: 'Roadmap', icon: <Brain className="h-3 w-3" /> },
+      { id: TOOL_IDS.MIND_MAP, name: 'Mind Map', icon: <MapIcon className="h-3 w-3" /> },
+      { id: TOOL_IDS.NOTES, name: 'Notes', icon: <StickyNote className="h-3 w-3" /> },
+      { id: TOOL_IDS.VIDEO, name: 'Video', icon: <Video className="h-3 w-3" /> },
+      { id: TOOL_IDS.GLOSSARY, name: 'Glossary', icon: <Library className="h-3 w-3" /> },
+      { id: TOOL_IDS.RESOURCES, name: 'Resources', icon: <BookMarked className="h-3 w-3" /> },
+      { id: TOOL_IDS.PODCAST, name: 'Podcast', icon: <Headphones className="h-3 w-3" /> },
     ];
-    
+
     return allTabs.filter(tab => openTabs.includes(tab.id));
   }, [openTabs]);
 
   const renderActiveTool = () => {
     switch (activeSidebarTab) {
-      case 'podcast':
-        if (generatingTools.includes('podcast')) {
+      case TOOL_IDS.PODCAST:
+        if (generatingTools.includes(TOOL_IDS.PODCAST)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-indigo-50 mx-auto flex items-center justify-center">
@@ -249,9 +250,9 @@ const LearnTools = ({
             </Button>
           </div>
         );
-      case 'summary':
-      case 'chapters':
-      case 'synthesis':
+      case TOOL_IDS.SUMMARY:
+      case TOOL_IDS.CHAPTERS:
+      case TOOL_IDS.SYNTHESIS:
         return (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading summary...</div>}>
             <SynthesisTab 
@@ -270,7 +271,7 @@ const LearnTools = ({
             />
           </Suspense>
         );
-      case 'video':
+      case TOOL_IDS.VIDEO:
         return (
           <div className="p-6">
             <div className="flex items-center gap-4 p-6 rounded-[2.5rem] bg-blue-50 border border-blue-100 shadow-xl shadow-blue-500/10 mb-8">
@@ -298,8 +299,8 @@ const LearnTools = ({
             </div>
           </div>
         );
-      case 'glossary':
-        if (activeGeneratingTools.includes('glossary')) {
+      case TOOL_IDS.GLOSSARY:
+        if (activeGeneratingTools.includes(TOOL_IDS.GLOSSARY)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-purple-50 mx-auto flex items-center justify-center">
@@ -353,8 +354,8 @@ const LearnTools = ({
             )}
           </div>
         );
-      case 'resources':
-        if (activeGeneratingTools.includes('resources')) {
+      case TOOL_IDS.RESOURCES:
+        if (activeGeneratingTools.includes(TOOL_IDS.RESOURCES)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-cyan-50 mx-auto flex items-center justify-center">
@@ -417,7 +418,7 @@ const LearnTools = ({
             )}
           </div>
         );
-      case 'transcript':
+      case TOOL_IDS.TRANSCRIPT:
         return (
           <div className="p-6">
             <div className="flex items-center gap-3 mb-8">
@@ -431,8 +432,8 @@ const LearnTools = ({
             </div>
           </div>
         );
-      case 'quiz':
-        if (generatingTools.includes('quiz')) {
+      case TOOL_IDS.QUIZ:
+        if (generatingTools.includes(TOOL_IDS.QUIZ)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-rose-50 mx-auto flex items-center justify-center">
@@ -459,8 +460,8 @@ const LearnTools = ({
             </div>
           </Suspense>
         ) : null;
-      case 'flashcards':
-        if (generatingTools.includes('flashcards')) {
+      case TOOL_IDS.FLASHCARDS:
+        if (generatingTools.includes(TOOL_IDS.FLASHCARDS)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-orange-50 mx-auto flex items-center justify-center">
@@ -487,8 +488,8 @@ const LearnTools = ({
              </div>
           </Suspense>
         ) : null;
-      case 'roadmap':
-        if (generatingTools.includes('roadmap')) {
+      case TOOL_IDS.ROADMAP:
+        if (generatingTools.includes(TOOL_IDS.ROADMAP)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-emerald-50 mx-auto flex items-center justify-center">
@@ -513,7 +514,7 @@ const LearnTools = ({
             />
           </Suspense>
         ) : null;
-      case 'mindmap':
+      case TOOL_IDS.MIND_MAP:
         return mindMapData ? (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading mind map...</div>}>
             <div className="h-[500px] border border-gray-100 bg-gray-50/30 rounded-3xl overflow-hidden mt-4">
@@ -521,8 +522,8 @@ const LearnTools = ({
             </div>
           </Suspense>
         ) : null;
-      case 'notes':
-        if (generatingTools.includes('notes')) {
+      case TOOL_IDS.NOTES:
+        if (generatingTools.includes(TOOL_IDS.NOTES)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-amber-50 mx-auto flex items-center justify-center">
@@ -811,18 +812,18 @@ const LearnTools = ({
                             <div className={cn(
                               "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
                               set.isGenerating ? "bg-gray-50 text-gray-400" : (
-                                set.type === 'quiz' ? "bg-red-50 text-red-500" : 
-                                set.type === 'roadmap' ? "bg-emerald-50 text-emerald-500" :
-                                set.type === 'flashcards' ? "bg-amber-50 text-amber-500" :
-                                set.type === 'summary' ? "bg-blue-50 text-blue-500" :
+                                set.type === TOOL_IDS.QUIZ ? "bg-red-50 text-red-500" :
+                                set.type === TOOL_IDS.ROADMAP ? "bg-emerald-50 text-emerald-500" :
+                                set.type === TOOL_IDS.FLASHCARDS ? "bg-amber-50 text-amber-500" :
+                                set.type === TOOL_IDS.SUMMARY ? "bg-blue-50 text-blue-500" :
                                 "bg-indigo-50 text-indigo-500"
                               )
                             )}>
                                {set.isGenerating ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 animate-spin rounded-full" /> : (
-                                 set.type === 'quiz' ? <HelpCircle className="h-5 w-5" /> : 
-                                  set.type === 'roadmap' ? <Target className="h-5 w-5" /> :
-                                  set.type === 'flashcards' ? <Layers className="h-5 w-5" /> :
-                                  set.type === 'summary' ? <FileText className="h-5 w-5" /> :
+                                 set.type === TOOL_IDS.QUIZ ? <HelpCircle className="h-5 w-5" /> :
+                                  set.type === TOOL_IDS.ROADMAP ? <Target className="h-5 w-5" /> :
+                                  set.type === TOOL_IDS.FLASHCARDS ? <Layers className="h-5 w-5" /> :
+                                  set.type === TOOL_IDS.SUMMARY ? <FileText className="h-5 w-5" /> :
                                   <Headphones className="h-5 w-5" />
                                )}
                             </div>
@@ -830,9 +831,9 @@ const LearnTools = ({
                               <p className="text-[13px] font-black text-gray-800 line-clamp-1">{set.name}</p>
                               <p className="text-[10px] font-bold text-gray-400 mt-0.5 opacity-80 uppercase tracking-tighter">
                                   {set.isGenerating ? 'Content is being generated...' : (
-                                    set.type === 'quiz' ? '10 questions left • All topics' : 
-                                     set.type === 'summary' ? 'Detailed Summary • All topics' :
-                                     set.type === 'roadmap' ? 'Personalized Learning Path' :
+                                    set.type === TOOL_IDS.QUIZ ? '10 questions left • All topics' :
+                                     set.type === TOOL_IDS.SUMMARY ? 'Detailed Summary • All topics' :
+                                     set.type === TOOL_IDS.ROADMAP ? 'Personalized Learning Path' :
                                      'Processed Analysis'
                                   )}
                               </p>

@@ -21,13 +21,58 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": ["framer-motion", "@radix-ui/react-dialog", "@radix-ui/react-tabs", "@radix-ui/react-tooltip"],
-          "vendor-flow": ["reactflow"],
-          "vendor-charts": ["recharts"],
+        manualChunks: (id) => {
+          // Vendor chunks - split by size and purpose
+          if (id.includes("node_modules")) {
+            // React core
+            if (id.includes("react-dom") || id.includes("react/")) {
+              return "vendor-react";
+            }
+            // Router and routing
+            if (id.includes("react-router") || id.includes("wouter")) {
+              return "vendor-router";
+            }
+            // Radix UI - group by component type
+            if (id.includes("@radix-ui")) {
+              if (id.includes("dialog") || id.includes("popover") || id.includes("sheet")) {
+                return "vendor-ui-overlay";
+              }
+              if (id.includes("select") || id.includes("combobox") || id.includes("command")) {
+                return "vendor-ui-select";
+              }
+              return "vendor-ui";
+            }
+            // Animation
+            if (id.includes("framer-motion")) {
+              return "vendor-motion";
+            }
+            // Charts
+            if (id.includes("recharts")) {
+              return "vendor-charts";
+            }
+            // Mind maps / flow
+            if (id.includes("reactflow") || id.includes("@xyflow")) {
+              return "vendor-flow";
+            }
+            // Video
+            if (id.includes("react-youtube")) {
+              return "vendor-video";
+            }
+            // Markdown
+            if (id.includes("react-markdown") || id.includes("remark-") || id.includes("rehype-")) {
+              return "vendor-markdown";
+            }
+            // State / data
+            if (id.includes("@tanstack") || id.includes("zustand") || id.includes("jotai")) {
+              return "vendor-state";
+            }
+            return "vendor-other";
+          }
         },
       },
     },
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-router-dom"],
   },
 }));

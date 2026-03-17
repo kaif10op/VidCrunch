@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(npx ts-node:*)",
+      "Bash(grep:*)"
+    ]
+  }
+}

@@ -162,13 +162,13 @@ async def process_video_analysis(
                         select(Transcript).where(Transcript.video_id == vid_uuid)
                     )
                     existing = existing_transcript.scalar_one_or_none()
-                    print(f"DEBUG [{vid_uuid}]: Checking existing transcript...", flush=True)
+                    logger.info(f"DEBUG [{vid_uuid}]: Checking existing transcript...", )
 
                     if existing:
-                        print(f"DEBUG [{vid_uuid}]: Existing record found. Word count: {existing.word_count}", flush=True)
+                        logger.info(f"DEBUG [{vid_uuid}]: Existing record found. Word count: {existing.word_count}", )
                     
                     if existing and existing.full_text and getattr(existing, 'word_count', 0) and existing.word_count > 50:
-                        print(f"DEBUG [{vid_uuid}]: Using cache path...", flush=True)
+                        logger.info(f"DEBUG [{vid_uuid}]: Using cache path...", )
                         class CachedSegment:
                             def __init__(self, start, end, text):
                                 self.start = start
@@ -193,9 +193,9 @@ async def process_video_analysis(
                         video.progress_percentage = 100
                         video.status = "ready"
                         await vid_db.commit()
-                        print(f"DEBUG [{vid_uuid}]: Cache path complete.", flush=True)
+                        logger.info(f"DEBUG [{vid_uuid}]: Cache path complete.", )
                     else:
-                        print(f"DEBUG [{vid_uuid}]: Entering extraction path...", flush=True)
+                        logger.info(f"DEBUG [{vid_uuid}]: Entering extraction path...", )
                         # Step 2: Extract transcript
                         try:
                             transcript_result = await transcript_engine.extract(platform_id)

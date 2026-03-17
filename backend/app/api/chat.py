@@ -4,7 +4,7 @@ import json
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.middleware.auth import get_current_user
 from app.models.models import Analysis, ChatMessage, Transcript, TranscriptChunk, User, Video
 from app.schemas.schemas import ChatMessageResponse, ChatRequest, ChatResponse
 from app.services.credit_service import check_and_deduct
+from app.middleware.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -453,7 +454,9 @@ def _build_messages(
 
 
 @router.post("/{analysis_id}")
+@limiter.limit("30/minute")  # Rate limit chat requests
 async def chat_with_video(
+    request: Request,
     analysis_id: UUID,
     req: ChatRequest,
     user: User = Depends(get_current_user),

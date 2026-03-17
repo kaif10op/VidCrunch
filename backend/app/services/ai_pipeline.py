@@ -9,7 +9,10 @@ Handles:
 
 import json
 import logging
+import re
+import asyncio
 from typing import AsyncGenerator, Optional
+from functools import lru_cache
 
 import httpx
 import tiktoken
@@ -24,6 +27,10 @@ try:
     _encoder = tiktoken.get_encoding("cl100k_base")
 except Exception:
     _encoder = None
+
+# Compiled regex patterns for performance
+_TIMESTAMP_PATTERN = re.compile(r"\[(\d+):(\d+)\]")
+_JSON_CODE_BLOCK_PATTERN = re.compile(r"```(?:json)?\s*([\s\S]*?)```")
 
 
 def count_tokens(text: str) -> int:
@@ -102,18 +109,16 @@ def chunk_transcript(
 
 
 def _extract_first_timestamp(lines: list[str]) -> Optional[float]:
-    import re
     for line in lines:
-        match = re.match(r"\[(\d+):(\d+)\]", line)
+        match = _TIMESTAMP_PATTERN.match(line)
         if match:
             return int(match.group(1)) * 60 + int(match.group(2))
     return None
 
 
 def _extract_last_timestamp(lines: list[str]) -> Optional[float]:
-    import re
     for line in reversed(lines):
-        match = re.match(r"\[(\d+):(\d+)\]", line)
+        match = _TIMESTAMP_PATTERN.match(line)
         if match:
             return int(match.group(1)) * 60 + int(match.group(2))
     return None
@@ -339,8 +344,11 @@ async def synthesize_content(
     raise AIError("Failed to parse AI response as JSON")
 
 
+classAITransientError = (Exception)
+
+
 async def _call_ai(provider: str, model: str, messages: list[dict], require_json: bool = True) -> str:
-    """Call an AI provider's chat completion API.
+    """Call an AI provider's chat completion API with manual retries.
 
     Supported providers:
       - groq: Groq Cloud (OpenAI-compatible)
@@ -370,33 +378,53 @@ async def _call_ai(provider: str, model: str, messages: list[dict], require_json
     url = url_map.get(provider, url_map["groq"])
     api_key = key_map.get(provider, settings.GROQ_API_KEY)
 
+    # Guard missing API key
+    if not api_key:
+        raise AIError(f"{provider.upper()} API key not configured")
+
     # For OpenRouter, use the AI_MODEL env var if available AND no model was passed
     if provider == "openrouter" and not model and settings.AI_MODEL:
         model = settings.AI_MODEL
-    
+
     # Ensure we have a model name
     model = model or settings.DEFAULT_AI_MODEL
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    if provider == "openrouter":
-        headers["HTTP-Referer"] = "https://youtube-genius.app"
-        headers["X-Title"] = "YouTube Genius"
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        if provider == "openrouter":
+            headers["HTTP-Referer"] = "https://youtube-genius.app"
+            headers["X-Title"] = "YouTube Genius"
 
-    body = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.3,
-        "max_tokens": 8000,
-    }
-    
-    if require_json:
-        body["response_format"] = {"type": "json_object"}
+        body = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.3,
+            "max_tokens": 8000,
+        }
+        if require_json:
+            body["response_format"] = {"type": "json_object"}
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(url, headers=headers, json=body, timeout=120.0)
+        async with httpx.AsyncClient(http2=True) as client:
+            try:
+                resp = await client.post(url, headers=headers, json=body, timeout=120.0)
+            except httpx.TimeoutException as e:
+                logger.error(f"AI request timed out: {e}")
+                if attempt == max_attempts:
+                    raise classAITransientError("AI request timed out") from e
+                else:
+                    await asyncio.sleep(min(2 ** attempt, 10))
+                    continue
+            except httpx.ConnectError as e:
+                logger.error(f"AI connection error: {e}")
+                if attempt == max_attempts:
+                    raise classAITransientError("AI connection failed") from e
+                else:
+                    await asyncio.sleep(min(2 ** attempt, 10))
+                    continue
 
         if resp.status_code != 200:
             error_detail = resp.text[:500]
@@ -405,6 +433,8 @@ async def _call_ai(provider: str, model: str, messages: list[dict], require_json
 
         data = resp.json()
         return data["choices"][0]["message"]["content"]
+
+    raise AIError(f"Failed to get response from {provider} after {max_attempts} attempts")
 
 
 async def _call_google_ai(model: str, messages: list[dict]) -> str:

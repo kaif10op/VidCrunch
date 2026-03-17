@@ -6,6 +6,8 @@ import { extractVideoId, POLL_INTERVAL_MS, POLL_MAX_ATTEMPTS, API_BASE_URL } fro
 import { logger } from "@/lib/logger";
 import { getAuthToken } from "@/lib/api";
 import { useSpacesContext } from "./SpacesContext";
+import { transformBackendAnalysis, safeJSONParse } from "@/lib/transformers";
+import { TOOL_IDS, ON_DEMAND_TOOLS, TOOL_TYPE_MAP } from "@/lib/toolConstants";
 import type { VideoData, SummaryData, Metadata, ChatMessage, AnalysisStatus, HistoryItem } from "@/types";
 
 interface AnalysisContextValue {
@@ -82,20 +84,51 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [isNotesSaving, setIsNotesSaving] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const pollingAbortControllerRef = useRef<AbortController | null>(null);
 
-  const pollAnalysis = useCallback(async (analysisId: string, vIds: string[]) => {
+  const pollAnalysis = useCallback(async (
+    analysisId: string,
+    vIds: string[],
+    signal?: AbortSignal
+  ): Promise<any> => {
     let completed = false;
     let data = null;
     let attempts = 0;
     
     while (!completed && attempts < POLL_MAX_ATTEMPTS) {
       attempts++;
-      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+      // Wait with cancellation support
+      await new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'));
+          return;
+        }
+        const timeout = setTimeout(() => {
+          resolve(null);
+        }, POLL_INTERVAL_MS);
+
+        const onAbort = () => {
+          clearTimeout(timeout);
+          reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+        // Listener auto-removed via once: true, no memory leak
+      });
+
       try {
-        const statusRes = await apiFetch(`/analysis/${analysisId}/status`);
+        if (signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+
+        // Use the signal for the fetch request
+        const statusRes = await apiFetch(`/analysis/${analysisId}/status`, {
+          signal: signal ? { signal } : undefined
+        });
+
         if (!statusRes.ok) continue;
         const statusData = await statusRes.json();
-        
+
         if (statusData.progress_percentage !== undefined) {
           setAnalysisProgress(statusData.progress_percentage);
         }
@@ -104,7 +137,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         }
 
         if (statusData.status === "completed") {
-          const detailRes = await apiFetch(`/analysis/${analysisId}`);
+          const detailRes = await apiFetch(`/analysis/${analysisId}`, {
+            signal: signal ? { signal } : undefined
+          });
           data = await detailRes.json();
           completed = true;
           setAnalysisProgress(100);
@@ -113,53 +148,27 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           setAnalysisStatus("failed");
           throw new Error(statusData.error || "Analysis task failed");
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          // Polling was cancelled, propagate abort
+          throw e;
+        }
         logger.warn("Polling attempt failed:", e);
       }
     }
 
     if (data) {
-      const { analysis, video, transcript_text, transcript_segments } = data;
-      
-      const vData: VideoData = {
-        title: video.title || "Video Analysis",
-        channel: video.channel || "YouTube",
-        duration: video.duration_seconds ? String(video.duration_seconds) : "N/A",
-        views: video.view_count ? video.view_count.toLocaleString() : "N/A",
-        likes: video.like_count ? video.like_count.toLocaleString() : "N/A",
-        published: video.created_at
-      };
+      const { videoData, summaryData, metadata, videoIds: transformedVideoIds } = transformBackendAnalysis(data);
 
-      const sData: SummaryData = {
-        overview: analysis.overview || "",
-        keyPoints: analysis.key_points || [],
-        takeaways: analysis.takeaways || [],
-        timestamps: (analysis.timestamps || []).map((t: any) => ({
-          time: t.timestamp !== undefined ? t.timestamp : t.time,
-          label: t.topic || t.label
-        })),
-        tags: analysis.tags || [],
-        quiz: analysis.quiz,
-        roadmap: analysis.roadmap,
-        mind_map: analysis.mind_map,
-        flashcards: analysis.flashcards,
-        transcript_segments: transcript_segments || analysis.transcript_segments,
-        learning_context: analysis.learning_context
-      };
+      // Use platform_id preferentially, fallback to first provided videoId
+      const finalVideoIds = [data.video.platform_id || vIds[0]];
 
-      const mData: Metadata = {
-        title: vData.title,
-        channel: vData.channel,
-        duration: vData.duration,
-        thumbnails: [{ url: video.thumbnail_url || `https://img.youtube.com/vi/${video.platform_id}/maxresdefault.jpg`, width: 1280, height: 720 }]
-      };
+      setVideoIds(finalVideoIds);
+      setVideoData(videoData);
+      setSummaryData(summaryData);
+      setTranscript(data.transcript_text || null);
+      setMetadata(metadata);
 
-      setVideoIds([video.platform_id || vIds[0]]);
-      setVideoData(vData);
-      setSummaryData(sData);
-      setTranscript(transcript_text);
-      setMetadata(mData);
-      
       // History is saved on backend, but we might want to refresh local history too
       refreshHistory();
     }
@@ -218,22 +227,39 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       if (!analysisId) throw new Error("No analysis ID returned");
 
       setActiveAnalysisId(analysisId);
-      
+
+      // Cancel any pending polling from previous analysis
+      pollingAbortControllerRef.current?.abort();
+      const pollController = new AbortController();
+      pollingAbortControllerRef.current = pollController;
+
       refreshHistory();
       navigate(`/analysis/${analysisId}`);
 
-      const data = await pollAnalysis(analysisId, ids);
-      if (data) {
-        toast.success("Analysis complete!");
+      try {
+        const data = await pollAnalysis(analysisId, ids, pollController.signal);
+        if (data) {
+          toast.success("Analysis complete!");
+        }
+      } finally {
+        // Clear the ref if this is the current poll controller
+        if (pollingAbortControllerRef.current === pollController) {
+          pollingAbortControllerRef.current = null;
+        }
       }
     } catch (err: any) {
+      // Ignore intentional abort errors (e.g., cancelled polling, component unmount)
+      if (err.name === 'AbortError') {
+        logger.info("Polling aborted:", err.message);
+        return;
+      }
       logger.error("Summarize error:", err);
       toast.error(err.message || "Failed to analyze video");
       setAnalysisStatus("failed");
     } finally {
       setIsChatLoading(false);
     }
-  }, [pollAnalysis, refreshHistory]);
+  }, [pollAnalysis, refreshHistory, navigate]);
 
   const loadChatHistory = useCallback(async (analysisId: string) => {
     try {
@@ -425,7 +451,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsChatLoading(false);
     }
-  }, [activeAnalysisId, chatMessages, contextSnippet, videoIds, setIsChatOpen, setChatMessages, setIsChatLoading, setContextSnippet]);
+  }, [activeAnalysisId, chatMessages, contextSnippet, videoIds, setChatMessages, setIsChatLoading, setContextSnippet]);
 
   const handleGenerateTool = useCallback(async (toolId: string, append: boolean = false, force: boolean = false) => {
     if (!activeAnalysisId) return;
@@ -520,7 +546,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       loadChatHistory(item.id);
     }
     navigate(`/analysis/${item.id}`);
-  }, [loadChatHistory]);
+  }, [loadChatHistory, navigate]);
 
   const handleBackToDashboard = useCallback(() => {
     setVideoData(null);
@@ -560,54 +586,20 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       const res = await apiFetch(`/analysis/${id}`);
       if (res.ok) {
         const data = await res.json();
-        // Reuse handleLoadHistoryItem logic or similar data transformation
-        const { analysis, video, transcript_text, transcript_segments } = data;
-        
-        const vData: VideoData = {
-          title: video.title || "Video Analysis",
-          channel: video.channel || "YouTube",
-          duration: video.duration_seconds ? String(video.duration_seconds) : "N/A",
-          views: video.view_count ? video.view_count.toLocaleString() : "N/A",
-          likes: video.like_count ? video.like_count.toLocaleString() : "N/A",
-          published: video.created_at
-        };
-  
-        const sData: SummaryData = {
-          overview: analysis.overview || "",
-          keyPoints: analysis.key_points || [],
-          takeaways: analysis.takeaways || [],
-          timestamps: (analysis.timestamps || []).map((t: any) => ({
-            time: t.timestamp !== undefined ? t.timestamp : t.time,
-            label: t.topic || t.label
-          })),
-          tags: analysis.tags || [],
-          quiz: analysis.quiz,
-          roadmap: analysis.roadmap,
-          mind_map: analysis.mind_map,
-          flashcards: analysis.flashcards,
-          transcript_segments: transcript_segments || analysis.transcript_segments,
-          learning_context: analysis.learning_context,
-          glossary: analysis.glossary || [],
-          resources: analysis.resources || []
-        };
-  
-        const mData: Metadata = {
-          title: vData.title,
-          channel: vData.channel,
-          duration: vData.duration,
-          thumbnails: [{ url: video.thumbnail_url || `https://img.youtube.com/vi/${video.platform_id}/maxresdefault.jpg`, width: 1280, height: 720 }]
-        };
-  
-        setVideoIds([video.platform_id]);
-        setVideoData(vData);
-        setSummaryData(sData);
-        setTranscript(transcript_text);
-        setMetadata(mData);
-        setUserNotes(analysis.user_notes || "");
+
+        // Use shared transformer
+        const { videoData, summaryData, metadata } = transformBackendAnalysis(data);
+
+        setVideoIds([data.video.platform_id]);
+        setVideoData(videoData);
+        setSummaryData(summaryData);
+        setTranscript(data.transcript_text || null);
+        setMetadata(metadata);
+        setUserNotes(data.analysis.user_notes || "");
         setActiveAnalysisId(id);
         setAnalysisStatus("completed");
         setAnalysisProgress(100);
-        
+
         if (getAuthToken()) {
           // loadChatHistory(id);
         }
@@ -622,13 +614,6 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleToolClick = useCallback((toolId: string, value?: string, context?: string) => {
-    const ON_DEMAND_TOOLS = [
-      "overview", "key_points", "takeaways", "tags", "learning_context", 
-      "quiz", "roadmap", "mindmap", "mind_map", "flashcards", "podcast",
-      "chapters", "transcript", "summary", "synthesis", "notes", "deepdive", "learn",
-      "video", "glossary", "resources"
-    ];
-
     if (value) {
       setIsChatOpen(true);
       if (context) setContextSnippet(context);
@@ -636,38 +621,25 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (ON_DEMAND_TOOLS.includes(toolId)) {
+    if (ON_DEMAND_TOOLS.includes(toolId as any)) {
       // Special cases for non-gen tools or specific actions
-      if (toolId === "deepdive") {
+      if (toolId === TOOL_IDS.DEEPDIVE) {
         setIsChatOpen(true);
-        handleSendMessage("Provide an in-depth academic analysis of this video's content...", null, "deepdive");
+        handleSendMessage("Provide an in-depth academic analysis of this video's content...", null, TOOL_IDS.DEEPDIVE);
         toast.info("Generating deep-dive analysis...");
         return;
       }
-      if (toolId === "video") {
+      if (toolId === TOOL_IDS.VIDEO) {
         // Just open the tab, no AI message needed initially
         return;
       }
 
       // Check if already available to avoid redundant generation
-      const toolKeyMap: Record<string, keyof SummaryData> = {
-        'quiz': 'quiz',
-        'roadmap': 'roadmap',
-        'mindmap': 'mind_map',
-        'mind_map': 'mind_map',
-        'flashcards': 'flashcards',
-        'podcast': 'podcastData' as any, // podcastData is at root but we check it differently
-        'summary': 'overview',
-        'synthesis': 'overview',
-        'glossary': 'glossary',
-        'resources': 'resources'
-      };
-
-      const toolKey = toolKeyMap[toolId];
+      const toolKey = TOOL_TYPE_MAP[toolId];
       const data = toolKey ? summaryData?.[toolKey] : null;
-      
+
       let isAvailable = false;
-      if (toolId === 'podcast') {
+      if (toolId === TOOL_IDS.PODCAST) {
         isAvailable = !!summaryData?.podcast;
       } else if (Array.isArray(data)) {
         isAvailable = data.length > 0;
@@ -691,19 +663,19 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       const hasMap = words.some(w => w.includes('map') || w.includes('mind'));
       
       if (hasRe && (hasGen || hasMap)) {
-          handleGenerateTool('mindmap', false, true);
+          handleGenerateTool(TOOL_IDS.MIND_MAP, false, true);
           return; // Stop processing further for this command
       }
     }
 
-    if (toolId === "ask" || toolId === "action") {
+    if (toolId === TOOL_IDS.ASK || toolId === "action") {
       setIsChatOpen(true);
       if (context) setContextSnippet(context);
       if (value) handleSendMessage(value, context, toolId);
     }
 
     if (toolId === 'mindmap_regenerate') {
-        handleGenerateTool('mindmap', false, true);
+        handleGenerateTool(TOOL_IDS.MIND_MAP, false, true);
     }
   }, [handleGenerateTool, handleSendMessage, setContextSnippet, setIsChatOpen, summaryData]);
 
@@ -719,6 +691,13 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setAiExplanation(null);
     setQuizAIExplanation(null);
     setRoadmapAIExplanation(null);
+  }, []);
+
+  // Cleanup: abort any ongoing polling when provider unmounts
+  useEffect(() => {
+    return () => {
+      pollingAbortControllerRef.current?.abort();
+    };
   }, []);
 
   return (
