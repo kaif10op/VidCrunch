@@ -16,7 +16,7 @@ interface VideoPreviewProps {
 }
 
 const VideoPreview = ({ videoId, title, channel, duration, views, likes, published, thumbnail, iframeRef, compact }: VideoPreviewProps) => {
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   return (
     <motion.div
@@ -38,7 +38,7 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
             >
               <iframe
                 ref={iframeRef}
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`}
+                src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`}
                 title={title}
                 className="w-full h-full border-none"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

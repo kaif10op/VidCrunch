@@ -47,6 +47,9 @@ interface AnalysisContextValue {
   setIsChatOpen: (isOpen: boolean) => void;
   analysisStyle: string;
   setAnalysisStyle: (style: string) => void;
+  userNotes: string;
+  updateUserNotes: (notes: string) => void;
+  isNotesSaving: boolean;
 }
 
 const AnalysisContext = createContext<AnalysisContextValue | null>(null);
@@ -75,6 +78,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [generatingTools, setGeneratingTools] = useState<string[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [analysisStyle, setAnalysisStyle] = useState("");
+  const [userNotes, setUserNotes] = useState("");
+  const [isNotesSaving, setIsNotesSaving] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -248,6 +253,31 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const updateUserNotes = useCallback((notes: string) => {
+    setUserNotes(notes);
+  }, []);
+
+  // Debounced auto-save for notes
+  useEffect(() => {
+    if (!activeAnalysisId || !userNotes) return;
+    
+    const timer = setTimeout(async () => {
+      setIsNotesSaving(true);
+      try {
+        await apiFetch(`/analysis/${activeAnalysisId}/notes`, {
+          method: "PATCH",
+          body: JSON.stringify({ user_notes: userNotes }),
+        });
+      } catch (err) {
+        logger.error("Failed to auto-save notes:", err);
+      } finally {
+        setIsNotesSaving(false);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [userNotes, activeAnalysisId]);
+
   const handleSendMessage = useCallback(async (content: string, forcedContext?: string | null, toolId?: string | null) => {
     const activeContext = forcedContext !== undefined ? forcedContext : contextSnippet;
     const finalContent = content;
@@ -284,6 +314,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let assistantMsgContent = "";
+        let visualBuffer = "";
+        let isInsideVisual = false;
         
         setChatMessages(prev => [...prev, { role: "assistant", content: "", toolId: toolId || undefined }]);
 
@@ -297,12 +329,66 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               const dataStr = line.slice(6).trim();
-              if (dataStr === "[DONE]") break;
+              if (dataStr === "[DONE]") {
+                // Final check for visual parsing
+                if (toolId === 'mindmap_expand' && visualBuffer) {
+                  try {
+                    const visualData = JSON.parse(visualBuffer);
+                    if (visualData.nodes && visualData.edges) {
+                      setSummaryData(prev => {
+                        if (!prev) return null;
+                        const existingMap = prev.mind_map || { nodes: [], edges: [] };
+                        // Filter out existing node IDs to avoid duplicates
+                        const newNodes = visualData.nodes.filter((n: any) => !existingMap.nodes.some(ex => ex.id === n.id));
+                        
+                        // Robust edge filtering using id or source-target as key
+                        const getEdgeKey = (e: any) => e.id || `${e.source}-${e.target}`;
+                        const newEdges = visualData.edges.filter((e: any) => {
+                          const newKey = getEdgeKey(e);
+                          return !existingMap.edges.some(ex => getEdgeKey(ex) === newKey);
+                        });
+                        
+                        return {
+                          ...prev,
+                          mind_map: {
+                            nodes: [...existingMap.nodes, ...newNodes],
+                            edges: [...existingMap.edges, ...newEdges]
+                          }
+                        };
+                      });
+                      toast.success("Knowledge graph expanded!");
+                    }
+                  } catch (e) {
+                    logger.warn("Failed to parse visual data on DONE", e);
+                  }
+                }
+                break;
+              }
               
               try {
                 const data = JSON.parse(dataStr);
                 if (data.type === "chunk") {
-                  assistantMsgContent += data.content;
+                  const contentChunk = data.content;
+                  assistantMsgContent += contentChunk;
+
+                  // Visual extraction logic
+                  if (contentChunk.includes("[VISUAL:")) {
+                    isInsideVisual = true;
+                    visualBuffer = "";
+                  }
+                  
+                  if (isInsideVisual) {
+                    const visualPart = contentChunk.includes("[/VISUAL]") 
+                      ? contentChunk.split("[/VISUAL]")[0].replace(/\[VISUAL:.*?\]/, "")
+                      : contentChunk.replace(/\[VISUAL:.*?\]/, "");
+                    visualBuffer += visualPart;
+                  }
+
+                  if (contentChunk.includes("[/VISUAL]")) {
+                    isInsideVisual = false;
+                    // Attempt immediate parse for better UX (though DONE is safer)
+                  }
+
                   setChatMessages(prev => {
                     const newChat = [...prev];
                     newChat[newChat.length - 1].content = assistantMsgContent;
@@ -341,7 +427,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     }
   }, [activeAnalysisId, chatMessages, contextSnippet, videoIds, setIsChatOpen, setChatMessages, setIsChatLoading, setContextSnippet]);
 
-  const handleGenerateTool = useCallback(async (toolId: string, append: boolean = false) => {
+  const handleGenerateTool = useCallback(async (toolId: string, append: boolean = false, force: boolean = false) => {
     if (!activeAnalysisId) return;
     
     setGeneratingTools(prev => [...prev, toolId]);
@@ -356,16 +442,19 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         'roadmap': 'roadmap',
         'mindmap': 'mind_map',
         'mind_map': 'mind_map',
+        'mindmap_regenerate': 'mind_map',
         'flashcards': 'flashcards',
         'podcast': 'podcast',
         'summary': 'overview',
-        'synthesis': 'overview'
+        'synthesis': 'overview',
+        'glossary': 'glossary',
+        'resources': 'resources'
       };
       
       const backendToolType = toolTypeMap[toolId];
       if (!backendToolType) return;
 
-      const res = await analysisApi.generateTool(activeAnalysisId, backendToolType, append);
+      const res = await analysisApi.generateTool(activeAnalysisId, backendToolType, append, force);
       if (res.ok) {
         const updatedAnalysis = await res.json();
         
@@ -377,7 +466,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           };
         });
         
-        toast.success(append ? `Generated more ${toolId}!` : `${toolId.charAt(0).toUpperCase() + toolId.slice(1)} generated!`);
+        toast.success(force ? `Mind Map regenerated!` : (append ? `Generated more ${toolId}!` : `${toolId.charAt(0).toUpperCase() + toolId.slice(1)} generated!`));
         refreshHistory();
       } else {
         toast.error(`Failed to generate ${toolId}`);
@@ -441,6 +530,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setChatMessages([]);
     setAnalysisStatus("idle");
     setAnalysisProgress(0);
+    setUserNotes("");
   }, []);
 
   const handleAddToSpace = useCallback(async (spaceId: string) => {
@@ -496,7 +586,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           mind_map: analysis.mind_map,
           flashcards: analysis.flashcards,
           transcript_segments: transcript_segments || analysis.transcript_segments,
-          learning_context: analysis.learning_context
+          learning_context: analysis.learning_context,
+          glossary: analysis.glossary || [],
+          resources: analysis.resources || []
         };
   
         const mData: Metadata = {
@@ -511,6 +603,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         setSummaryData(sData);
         setTranscript(transcript_text);
         setMetadata(mData);
+        setUserNotes(analysis.user_notes || "");
         setActiveAnalysisId(id);
         setAnalysisStatus("completed");
         setAnalysisProgress(100);
@@ -532,7 +625,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     const ON_DEMAND_TOOLS = [
       "overview", "key_points", "takeaways", "tags", "learning_context", 
       "quiz", "roadmap", "mindmap", "mind_map", "flashcards", "podcast",
-      "chapters", "transcript", "summary", "synthesis", "notes", "deepdive", "learn"
+      "chapters", "transcript", "summary", "synthesis", "notes", "deepdive", "learn",
+      "video", "glossary", "resources"
     ];
 
     if (value) {
@@ -550,10 +644,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         toast.info("Generating deep-dive analysis...");
         return;
       }
-      if (toolId === "notes") {
-        setIsChatOpen(true);
-        handleSendMessage("Create comprehensive study notes from this video...", null, "notes");
-        toast.info("Generating study notes...");
+      if (toolId === "video") {
+        // Just open the tab, no AI message needed initially
         return;
       }
 
@@ -566,11 +658,22 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         'flashcards': 'flashcards',
         'podcast': 'podcastData' as any, // podcastData is at root but we check it differently
         'summary': 'overview',
-        'synthesis': 'overview'
+        'synthesis': 'overview',
+        'glossary': 'glossary',
+        'resources': 'resources'
       };
 
       const toolKey = toolKeyMap[toolId];
-      const isAvailable = toolId === 'podcast' ? !!summaryData?.podcast : (toolKey && !!summaryData?.[toolKey]);
+      const data = toolKey ? summaryData?.[toolKey] : null;
+      
+      let isAvailable = false;
+      if (toolId === 'podcast') {
+        isAvailable = !!summaryData?.podcast;
+      } else if (Array.isArray(data)) {
+        isAvailable = data.length > 0;
+      } else {
+        isAvailable = !!data;
+      }
       
       if (!isAvailable) {
         handleGenerateTool(toolId);
@@ -578,10 +681,29 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (value) {
+      // Intercept regeneration intent in chat with more robustness (typos, shorthand)
+      // Done BEFORE toolId check to ensure it works anywhere
+      const intent = value.toLowerCase();
+      const words = intent.split(/\s+/);
+      const hasRe = words.some(w => w.startsWith('re'));
+      const hasGen = words.some(w => w.includes('gen'));
+      const hasMap = words.some(w => w.includes('map') || w.includes('mind'));
+      
+      if (hasRe && (hasGen || hasMap)) {
+          handleGenerateTool('mindmap', false, true);
+          return; // Stop processing further for this command
+      }
+    }
+
     if (toolId === "ask" || toolId === "action") {
       setIsChatOpen(true);
       if (context) setContextSnippet(context);
       if (value) handleSendMessage(value, context, toolId);
+    }
+
+    if (toolId === 'mindmap_regenerate') {
+        handleGenerateTool('mindmap', false, true);
     }
   }, [handleGenerateTool, handleSendMessage, setContextSnippet, setIsChatOpen, summaryData]);
 
@@ -640,6 +762,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         setIsChatOpen,
         analysisStyle,
         setAnalysisStyle,
+        userNotes,
+        updateUserNotes,
+        isNotesSaving
       }}
     >
       {children}

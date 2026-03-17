@@ -21,8 +21,8 @@ export interface RoadmapStep {
 }
 
 export interface MindMapData {
-  nodes: { id: string; label: string }[];
-  edges: { source: string; target: string; label?: string }[];
+  nodes: { id: string; label: string; details?: string; timestamp?: number }[];
+  edges: { id?: string; source: string; target: string; label?: string }[];
 }
 
 export interface SummaryData {
@@ -37,8 +37,10 @@ export interface SummaryData {
   mind_map?: MindMapData;
   flashcards?: { front: string; back: string; hint?: string }[];
   podcast?: { audioUrl?: string; script?: string };
-  transcript_segments?: { start: number; end: number; text: string }[];
   learning_context?: { why: string; whatToHowTo: string; bestWay: string };
+  transcript_segments?: { start: number; end: number; text: string }[];
+  glossary?: { term: string; definition: string }[];
+  resources?: { name: string; url?: string; description?: string }[];
 }
 
 export interface Metadata {
@@ -115,6 +117,8 @@ export const fetchHistory = async (): Promise<HistoryItem[]> => {
           roadmap: a.roadmap,
           mind_map: a.mind_map,
           flashcards: a.flashcards,
+          glossary: a.glossary,
+          resources: a.resources,
           transcript_segments: a.transcript_segments
         },
         transcript: null,

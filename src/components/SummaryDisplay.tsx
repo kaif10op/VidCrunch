@@ -1,16 +1,16 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Copy, Check, BookOpen, Lightbulb, 
   Clock, Map, FileText, 
   Brain, Target,
   Rocket, Star,
-  ChevronDown, Plus, FolderPlus, MessageSquare,
-  ChevronUp, Settings2, Share2, MoreVertical, ChevronRight
+  ChevronDown, Plus, MessageSquare,
+  ChevronUp, Settings2, Share2, MoreVertical, ChevronRight, Sparkles, X
 } from "lucide-react";
 import { useState, useEffect, useRef, lazy, Suspense, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { RichMessage } from "./RichMessage";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +67,12 @@ interface SummaryDisplayProps {
   flashcards?: { front: string; back: string }[];
   transcript_segments?: { start: number; end: number; text: string }[];
   onToolClick?: (toolId: string, value?: string, context?: string) => void;
+  aiExplanation?: string | null;
+  onClearExplanation?: () => void;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
+  isAutoScroll: boolean;
+  setIsAutoScroll: (val: boolean) => void;
 }
 
 function parseTimeToSeconds(timeStr: string): number {
@@ -91,14 +97,25 @@ const SummaryDisplay = ({
   currentTime = 0,
   flashcards,
   transcript_segments,
-  onToolClick
+  onToolClick,
+  aiExplanation,
+  onClearExplanation,
+  activeTab = "chapters",
+  onTabChange,
+  isAutoScroll,
+  setIsAutoScroll
 }: SummaryDisplayProps) => {
   const resolvedLearningContext = learningContext || learning_context;
   const [copied, setCopied] = useState(false);
-  const [isAutoScroll, setIsAutoScroll] = useState(false);
-  const [activeTab, setActiveTab] = useState("chapters");
+  
+  const currentTab = activeTab;
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onClearExplanation?.();
+  }, [currentTab, onClearExplanation]);
 
   const handleCopy = () => {
     const text = `Title: ${overview}\n\nKey Points:\n${keyPoints.join("\n")}\n\nTakeaways:\n${takeaways.join("\n")}`;
@@ -114,7 +131,7 @@ const SummaryDisplay = ({
         block: "center",
       });
     }
-  }, [currentTime, isAutoScroll, activeTab]);
+  }, [currentTime, isAutoScroll, currentTab]);
 
   const activeTranscriptIndex = useMemo(() => {
     if (transcript_segments) {
@@ -147,6 +164,22 @@ const SummaryDisplay = ({
     return activeIndex;
   }, [currentTime, transcript_segments, transcript]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName);
+      if (isInput) return;
+
+      // Tab switching
+      switch(e.key) {
+        case '1': onTabChange?.("chapters"); break;
+        case '2': onTabChange?.("transcript"); break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onTabChange]);
+
   const activeChapterIndex = useMemo(() => {
     let activeIndex = -1;
     for (let i = 0; i < timestamps.length; i++) {
@@ -162,80 +195,17 @@ const SummaryDisplay = ({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="space-y-8 pb-32">
-      {/* Overview Card - Minimal version for header */}
-      <div className="flex items-center justify-between gap-4 mb-2">
-         <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gray-50 dark:bg-gray-900 flex items-center justify-center border border-gray-100 dark:border-gray-800">
-              <BookOpen className="h-4 w-4 text-black dark:text-white" />
-            </div>
-            <h2 className="text-xl font-bold text-foreground truncate max-w-sm">Video Summary</h2>
-         </div>
-         
-         <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl border-gray-100 font-bold text-[#00a86b] hover:bg-[#e6f9f1] hover:border-[#ccf0dd] transition-all">
-              Upgrade
-            </Button>
-            <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl border-gray-100 font-bold gap-2 hover:bg-gray-50 transition-all">
-               <Plus className="h-4 w-4" /> New Exam
-            </Button>
-            <Button variant="ghost" size="sm" className="h-9 px-4 rounded-xl font-bold gap-2 text-gray-500 hover:text-black">
-               Share <MoreVertical className="h-4 w-4" />
-            </Button>
-         </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-           <button 
-             onClick={() => setActiveTab("chapters")}
-             className={cn(
-               "flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-               activeTab === "chapters" ? "bg-white text-black shadow-sm" : "text-gray-400 hover:text-gray-600"
-             )}
-           >
-             <div className={cn("w-2 h-2 rounded-full", activeTab === "chapters" ? "bg-green-500" : "bg-gray-200")} />
-             Chapters
-           </button>
-           <div className="w-px h-4 bg-gray-200" />
-           <button 
-             onClick={() => setActiveTab("transcripts")}
-             className={cn(
-               "flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-               activeTab === "transcripts" ? "bg-white text-black shadow-sm" : "text-gray-400 hover:text-gray-600"
-             )}
-           >
-             <FileText className="h-3.5 w-3.5" />
-             Transcripts
-           </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsAutoScroll(!isAutoScroll)}
-            className={cn(
-              "flex items-center gap-2.5 px-6 py-2.5 rounded-2xl border transition-all shadow-sm",
-              isAutoScroll ? "bg-white border-gray-100 text-black" : "bg-gray-50/50 border-gray-100 text-gray-400 hover:bg-white"
-            )}
-          >
-             <Settings2 className={cn("h-4 w-4 transition-transform", isAutoScroll && "text-black")} />
-             <span className="text-xs font-black uppercase tracking-widest">Auto Scroll</span>
-          </button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 bg-gray-50/50 hover:bg-white border border-gray-100 rounded-2xl shadow-sm">
-             <ChevronUp className="h-4 w-4 text-gray-400" />
-          </Button>
-        </div>
-      </div>
 
       <AnimatePresence mode="wait">
         <motion.div
-           key={activeTab}
+           key={currentTab}
            initial={{ opacity: 0, y: 10 }}
            animate={{ opacity: 1, y: 0 }}
            exit={{ opacity: 0, y: -10 }}
            transition={{ duration: 0.2 }}
            className="bg-gray-50/30 dark:bg-gray-900/10 rounded-[40px] border border-gray-100 dark:border-gray-800 p-8 min-h-[400px]"
         >
-          {activeTab === "chapters" ? (
+          {currentTab === "chapters" ? (
              <div className="space-y-12">
                {timestamps?.map((ts, i) => (
                   <div key={i} className="group cursor-pointer">
@@ -243,46 +213,42 @@ const SummaryDisplay = ({
                        <div className="flex flex-col items-center gap-3">
                           <button 
                              onClick={() => onTimestampClick?.(parseTimeToSeconds(ts.time))}
-                             className="w-16 h-10 rounded-2xl bg-white dark:bg-black border border-gray-100 dark:border-gray-800 flex items-center justify-center text-xs font-black shadow-sm group-hover:border-black dark:group-hover:border-white transition-all"
+                             className={cn(
+                                "w-16 h-10 rounded-2xl border flex items-center justify-center text-xs font-black shadow-sm transition-all",
+                                i === activeChapterIndex ? "bg-black text-white border-black" : "bg-white dark:bg-black border-gray-100 dark:border-gray-800 group-hover:border-black dark:group-hover:border-white"
+                             )}
                           >
                              {ts.time}
                           </button>
                           <div className="w-0.5 flex-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
                        </div>
                        <div className="flex-1 pb-12 group-last:pb-0">
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-black dark:group-hover:text-white transition-colors">{ts.label}</h3>
-                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-relaxed">
+                          <div className="flex items-center justify-between gap-4 mb-2">
+                            <h3 className={cn(
+                                "text-lg font-bold transition-colors",
+                                i === activeChapterIndex ? "text-black dark:text-white" : "text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white"
+                            )}>{ts.label}</h3>
+                            <Button 
+                                size="sm" 
+                                variant="ghost"
+                                className="h-8 rounded-lg text-[10px] font-bold gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToolClick?.('chapters', `Explain this section: ${ts.label}`, `[Chapter Context]: ${ts.label} at ${ts.time}`);
+                                }}
+                            >
+                                <Sparkles className="h-3 w-3" /> Explain
+                            </Button>
+                          </div>
+                          <p className="text-sm font-medium text-gray-400 dark:text-gray-500 leading-relaxed">
                             Deep analysis of {ts.label.toLowerCase()} covering key concepts and practical applications shared in this section.
                           </p>
                        </div>
                     </div>
                   </div>
                ))}
-
-               {/* Add Context-Aware Chat Trigger */}
-               <div className="mt-12 pt-12 border-t border-gray-100 dark:border-gray-800">
-                  <div className="relative group">
-                    <input 
-                      type="text"
-                      placeholder="Ask a follow-up about these chapters..."
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const val = (e.target as HTMLInputElement).value;
-                          if (val.trim()) {
-                            onToolClick?.('chapters', val, `[Chapters Context]:\n${timestamps?.map(t => `${t.time}: ${t.label}`).join('\n')}`);
-                            (e.target as HTMLInputElement).value = '';
-                          }
-                        }
-                      }}
-                      className="w-full h-16 bg-white dark:bg-black rounded-3xl border border-gray-200 dark:border-gray-800 px-8 pr-16 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all shadow-sm"
-                    />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-black dark:bg-white flex items-center justify-center cursor-pointer">
-                      <ChevronRight className="h-4 w-4 text-white dark:text-black" />
-                    </div>
-                  </div>
-                </div>
-             </div>
-          ) : activeTab === "transcripts" ? (
+                 </div>
+          ) : currentTab === "transcripts" ? (
              <div className="space-y-8">
                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-thin">
                  {transcript_segments?.map((seg, i) => (
@@ -332,6 +298,30 @@ const SummaryDisplay = ({
              </div>
           ) : null}
         </motion.div>
+      </AnimatePresence>
+
+      {/* AI Breakdown for Summary navigation deep-dives */}
+      <AnimatePresence>
+        {aiExplanation && (
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="mx-8 p-8 bg-black rounded-[2.5rem] border border-white/10 relative overflow-hidden shadow-2xl"
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-100">Deep-Dive Analysis</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={onClearExplanation} className="h-8 w-8 p-0 rounded-lg text-white/40 hover:text-white">
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="prose prose-invert prose-sm max-w-none">
+                    <RichMessage content={aiExplanation} role="assistant" className="text-gray-200" />
+                </div>
+            </motion.div>
+        )}
       </AnimatePresence>
 
     </motion.div>

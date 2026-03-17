@@ -105,8 +105,8 @@ export const analysisApi = {
   get: (id: string) => apiFetch(`/analysis/${id}`),
   delete: (analysisId: string) => apiFetch(`/analysis/${analysisId}`, { method: "DELETE" }),
   getStatus: (analysisId: string) => apiFetch(`/analysis/${analysisId}/status`),
-  generateTool: (analysisId: string, toolType: string, append: boolean = false) =>
-    apiFetch(`/analysis/${analysisId}/generate?tool_type=${toolType}${append ? '&append=true' : ''}`, { method: "POST" }),
+  generateTool: (analysisId: string, toolType: string, append: boolean = false, force: boolean = false) =>
+    apiFetch(`/analysis/${analysisId}/generate?tool_type=${toolType}${append ? '&append=true' : ''}${force ? '&force=true' : ''}`, { method: "POST" }),
 };
 
 export const searchApi = {

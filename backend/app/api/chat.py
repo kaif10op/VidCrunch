@@ -163,6 +163,38 @@ analogy to something universally familiar.
 TONE: Punchy. Every word on a flashcard must earn its place — ruthlessly cut filler.
 LENGTH: 1–3 flashcards per response unless the user requests more.""",
 
+    # ── Glossary: terminology mastery ───────────────────────────────────────
+    "glossary": """\
+ROLE: Clinical Terminology Specialist. Your job is to define and contextualize the \
+nomenclature of the video with absolute precision.
+
+OUTPUT FORMAT:
+1. **The Core Term** — Bold and clear.
+2. **Standard Definition** — 1–2 sentences of dictionary-level accuracy.
+3. **Contextual Use** — How this term is used *specifically* in the video's content.
+4. **Pitfall Alert** — A warning about common misconceptions or similar-sounding but \
+different terms.
+
+VISUAL RULE: If the term is part of a part-to-whole relationship or a process, \
+render a [VISUAL:MindMap].
+
+LENGTH: Concise. Every word must serve the definition.""",
+
+    # ── Resources: external authority ────────────────────────────────────────
+    "resources": """\
+ROLE: Curated Knowledge Librarian. Provide high-authority external references and \
+tools that build on the video's core insights.
+
+OUTPUT FORMAT:
+- Focus on Books, Scientific Papers, Software Tools, or Official Documentation.
+- For each resource: **Resource Name** ✨ [Authority Level] -> Why it's the next step -> \
+Key concepts it covers.
+
+VISUAL RULE: Use [VISUAL:MindMap] to show how these external resources map to the \
+video's primary concepts.
+
+TONE: Professional and authoritative. Avoid generic "blog post" style links.""",
+
     # ── Synthesis: cross-concept integration ────────────────────────────────
     "synthesis": """\
 ROLE: Knowledge Synthesizer. Elevate isolated facts into a unified, transferable \
@@ -202,21 +234,72 @@ TONE: Precise and navigational. Think GPS, not tour guide.""",
 
     # ── Transcript: line-level analysis ─────────────────────────────────────
     "transcript": """\
-ROLE: Precision Transcript Analyst. Operate at the level of individual lines, \
-phrases, and word choices.
-
-CAPABILITIES:
-- **Clarify** — Explain exactly what a specific line means in plain language.
-- **Contextualise** — Explain why the speaker said this *at this moment* in the video.
-- **Translate/Rephrase** — Rewrite complex or jargon-heavy passages in simpler language \
-without losing meaning.
 - **Fact-Check** — If the user questions a claim in the transcript, surface what the \
 transcript actually says and note if it can or cannot be verified from context alone.
+- **Glossary** — Extract and define technical terms, jargon, or proper nouns.
+- **Resources** — Identify external references, books, papers, or tools mentioned.
 
 OUTPUT RULE: Always quote the relevant transcript passage (truncated to the key phrase) \
 before analysing it. Use blockquote format: > "exact words from transcript"
 
 TONE: Analytical and precise. Zero editorialising beyond what the transcript supports.""",
+
+    # ── Glossary: terminology mastery ──────────────────────────────────────
+    "glossary": """\
+ROLE: Linguistic Curator. Decipher technical terminology and domain-specific \
+jargon from the video.
+
+OUTPUT FORMAT:
+| Term | Context-Aware Definition | Significance in Video |
+| :--- | :--- | :--- |
+| **Term A** | What it means in this specific context | Why it matters to the topic |
+
+RULES:
+- Focus on terms that are 1) essential to understanding the video, or 2) rare/technical.
+- Do NOT define common words.
+- If the speaker provides a non-standard definition, prioritize it over a general one.
+
+TONE: Academic but accessible. Length: Comprehensive table (5-10 terms).""",
+
+    # ── Resources: knowledge expansion ──────────────────────────────────────
+    "resources": """\
+ROLE: Information Architect. Surface every external reference and build a \
+bridge to further study.
+
+OUTPUT FORMAT:
+1. **Direct Mentions** — List every person, book, paper, tool, or website name \
+mentioned in the transcript.
+2. **Contextual Utility** — For each mention, explain *why* it was referenced.
+3. **Mastery Path** — Suggest 2–3 "Upstream" resources for deep theory and 2–3 \
+"Downstream" resources for practical application.
+
+VISUAL RULE: If the resources form a specific learning sequence, render a \
+[VISUAL:MindMap] showing the "Prerequisite -> Current Video -> Advanced Study" flow.
+
+TONE: Resourceful and academic. Zero filler.""",
+
+    # ── Mind Map Expand: dynamic graph growth ────────────────────────────────
+    "mindmap_expand": """\
+ROLE: Knowledge Graph Optimizer. Your TASK is to expand the existing mind map with \
+new, granular sub-nodes for a specific concept.
+
+STRICT OUTPUT RULE:
+- Your response MUST contain exactly one [VISUAL:MindMap] block.
+- DO NOT provide any text explanation outside the block.
+- The block must contain ONLY new nodes and edges that connect to the existing \
+node ID provided in the context.
+
+JSON SCHEMA:
+{
+  "nodes": [
+    { "id": "generated_id", "data": { "label": "Sub-topic Name", "details": "Brief 1-line detail", "timestamp": 123 } }
+  ],
+  "edges": [
+    { "id": "e_source_target", "source": "existing_node_id", "target": "generated_id", "label": "expands on" }
+  ]
+}
+
+TONE: Data-centric. Ensure every new node has a valid timestamp from the video if possible.""",
 }
 
 _DEFAULT_MISSION = """\
@@ -430,7 +513,35 @@ async def chat_with_video(
     history = list(reversed(history_result.scalars().all()))
 
     # ── Build LLM payload ─────────────────────────────────────────────────
-    system_prompt = _build_system_prompt(context, req.tool_id, req.context_snippet)
+    message_lower = req.message.lower()
+    auto_mission = req.tool_id
+    
+    # Intelligent Context Expansion & Mission Switching
+    # If the user asks for a global synthesis/map, RAG is often too narrow.
+    # Pull a larger transcript chunk to ensure global context.
+    needs_global_context = any(word in message_lower for word in ["regenerate", "summary", "mindmap", "mind map", "roadmap", "comprehensive", "all", "whole"])
+    
+    if needs_global_context:
+        logger.info("Global synthesis intent detected; expanding context window and bypassing RAG.")
+        t_result = await db.execute(select(Transcript).where(Transcript.video_id == video_id))
+        transcript = t_result.scalar_one_or_none()
+        # Expand context to 15,000 chars for global requests
+        context = transcript.full_text[:15000] if transcript else context
+        
+        # Auto-switch mission based on intent if not already set
+        if not auto_mission or auto_mission == "ask":
+            if "mind map" in message_lower or "mindmap" in message_lower:
+                auto_mission = "mindmap"
+            elif "roadmap" in message_lower:
+                auto_mission = "roadmap"
+            elif "summary" in message_lower or "synthesis" in message_lower:
+                auto_mission = "synthesis"
+            elif "glossary" in message_lower:
+                auto_mission = "glossary"
+            elif "resource" in message_lower:
+                auto_mission = "resources"
+
+    system_prompt = _build_system_prompt(context, auto_mission, req.context_snippet)
     messages = _build_messages(system_prompt, history, req.message)
 
     from app.services.ai_pipeline import _stream_ai_with_fallback

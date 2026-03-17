@@ -207,7 +207,20 @@ Return ONLY valid JSON (no markdown, no code blocks) with this EXACT structure:
   "podcast": {{
     "script": "A high-fidelity dialogue script between two hosts (e.g., Alex and Taylor) discussing the video insights. Make it engaging and professional.",
     "audioUrl": ""
-  }}
+  }},
+  "glossary": [
+    {{
+      "term": "Key term or concept",
+      "definition": "Clear, concise definition"
+    }}
+  ],
+  "resources": [
+    {{
+      "name": "Resource name (e.g., book, tool, or website)",
+      "url": "https://example.com/relevant-link",
+      "description": "Why this resource is valuable for this topic"
+    }}
+  ]
 }}
 
 Rules:

@@ -129,6 +129,9 @@ class AnalysisResponse(BaseModel):
     podcast: Optional[dict] = None
     learning_context: Optional[dict] = None
     tags: Optional[list] = None
+    glossary: Optional[list] = None
+    resources: Optional[list] = None
+    user_notes: Optional[str] = None
     transcript_segments: Optional[list] = None
     is_multi_video: bool = False
     status: str
@@ -277,3 +280,6 @@ class PaginatedResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+class AnalysisNotesUpdate(BaseModel):
+    user_notes: str

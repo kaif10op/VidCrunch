@@ -212,6 +212,9 @@ class Analysis(Base):
     podcast: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     learning_context: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     tags: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    glossary: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    resources: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    user_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Multi-video synthesis
     is_multi_video: Mapped[bool] = mapped_column(Boolean, default=False)
