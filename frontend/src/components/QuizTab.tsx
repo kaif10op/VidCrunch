@@ -53,14 +53,14 @@ const QuizTab = ({
     onClearExplanation?.();
   }, [current, onClearExplanation]);
 
-  const handleSelect = (idx: number) => {
+  const handleSelect = useCallback((idx: number) => {
     if (selected !== null) return;
     setSelected(idx);
     const isCorrect = idx === quiz[current].answer;
     if (isCorrect) setScore(s => s + 1);
     const newAnswers = [...answers, idx];
     setAnswers(newAnswers);
-  };
+  }, [selected, current, quiz, answers]);
 
   const handleNext = useCallback(() => {
     if (current + 1 >= quiz.length) {
@@ -71,14 +71,14 @@ const QuizTab = ({
     }
   }, [current, quiz.length]);
 
-  const handleRestart = () => {
+  const handleRestart = useCallback(() => {
     setCurrent(0);
     setSelected(null);
     setScore(0);
     setFinished(false);
     setAnswers([]);
     onClearExplanation?.();
-  };
+  }, [onClearExplanation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -123,7 +123,7 @@ const QuizTab = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [current, selected, finished, quiz, isGenerating, onAIAction, onGenerateMore, handleNext]);
+  }, [current, selected, finished, quiz, isGenerating, onAIAction, onGenerateMore, handleNext, handleRestart, handleSelect]);
 
   if (!quiz || quiz.length === 0) {
     return (

@@ -7,7 +7,7 @@ import {
   ChevronUp, Settings2, Share2, MoreVertical, Maximize2, Sliders,
   ChevronRight, StickyNote, MoreHorizontal, Mic, History,
   User as UserIcon, Sparkles, X, ChevronLeftCircle,
-  Headphones, Video
+  Headphones, Video, Link, BookMarked, Languages, Library, List, ExternalLink
 } from "lucide-react";
 import { useRef, useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { RichMessage } from "./RichMessage";
 import { useAnalysisContext } from "@/contexts/AnalysisContext";
 import { AnimatePresence, motion } from "framer-motion";
+import { TOOL_IDS, UTILITY_TOOLS } from "@/lib/toolConstants";
 
 const QuizTab = lazy(() => import("./QuizTab"));
 const MindMapTab = lazy(() => import("./MindMapTab"));
 const Flashcards = lazy(() => import("./Flashcards"));
 const NotesTool = lazy(() => import("./NotesTool"));
 const SynthesisTab = lazy(() => import("./SynthesisTab"));
+const RoadmapTab = lazy(() => import("./RoadmapTab"));
 
 interface QuizQuestion {
   question: string;
@@ -80,10 +82,20 @@ interface LearnToolsProps {
   timestamps?: Timestamp[];
   aiExplanation?: string | null;
   quizAIExplanation?: string | null;
+  roadmapAIExplanation?: string | null;
   onClearExplanation?: () => void;
   onMaximize?: () => void;
   isMaximized?: boolean;
 }
+
+const LoadingState = () => (
+  <div className="p-12 text-center space-y-6">
+    <div className="w-20 h-20 rounded-[2.5rem] bg-gray-50 mx-auto flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-gray-200 border-t-black animate-spin rounded-full" />
+    </div>
+    <p className="text-xs font-bold text-gray-400 capitalize">Loading analysis tool...</p>
+  </div>
+);
 
 const LearnTools = ({ 
   onToolClick, 
@@ -102,7 +114,7 @@ const LearnTools = ({
   activeSidebarTab = "learn",
   onSidebarTabChange,
   onCloseTab,
-  openTabs = ["learn", "synthesis"],
+  openTabs = ["learn"],
   onAIAction,
   overview,
   keyPoints,
@@ -115,47 +127,50 @@ const LearnTools = ({
   isMaximized,
   aiExplanation,
   quizAIExplanation,
+  roadmapAIExplanation,
   onClearExplanation,
 }: LearnToolsProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [askInput, setAskInput] = useState("");
-  const { chatMessages, isChatLoading } = useAnalysisContext();
+  const { chatMessages, isChatLoading, summaryData, generatingTools: contextGeneratingTools } = useAnalysisContext();
   const [showConversation, setShowConversation] = useState(false);
+  
+  // Use context generating tools as fallback if props not provided
+  const activeGeneratingTools = generatingTools || contextGeneratingTools || [];
 
   // Filter messages for current tool
   const currentToolMessages = useMemo(() => {
     return chatMessages.filter(m => m.toolId === activeSidebarTab);
   }, [chatMessages, activeSidebarTab]);
 
-  useEffect(() => {
-    if (currentToolMessages.length > 0) {
-      setShowConversation(true);
-    }
-  }, [currentToolMessages.length]);
+  // Removed auto-chat transition to keep users in the "Page" view
 
   const tools = [
-    { id: 'podcast', name: 'Podcast', icon: <Headphones className="h-4 w-4" />, color: 'text-indigo-600', bg: 'bg-indigo-50', available: !!podcastData },
-    { id: 'video', name: 'Video', icon: <Video className="h-4 w-4" />, color: 'text-blue-600', bg: 'bg-blue-50', available: true },
-    { id: 'summary', name: 'Summary', icon: <FileText className="h-4 w-4" />, color: 'text-blue-500', bg: 'bg-blue-50', available: !!overview },
-    { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-4 w-4" />, color: 'text-rose-500', bg: 'bg-rose-50', available: hasQuiz || !!quizData },
-    { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-4 w-4" />, color: 'text-orange-500', bg: 'bg-orange-50', available: hasFlashcards || !!flashcardsData },
-    { id: 'notes', name: 'Notes', icon: <StickyNote className="h-4 w-4" />, color: 'text-amber-500', bg: 'bg-amber-50', available: true },
-    { id: 'roadmap', name: 'Lesson Plan', icon: <Rocket className="h-4 w-4" />, color: 'text-emerald-500', bg: 'bg-emerald-50', available: hasRoadmap || !!roadmapData, isNew: true },
+    { id: TOOL_IDS.PODCAST, name: 'Podcast', icon: <Headphones className="h-4 w-4" />, color: 'text-indigo-600', bg: 'bg-indigo-50', available: !!podcastData },
+    { id: TOOL_IDS.VIDEO, name: 'Video', icon: <Video className="h-4 w-4" />, color: 'text-blue-600', bg: 'bg-blue-50', available: true },
+    { id: TOOL_IDS.SUMMARY, name: 'Summary', icon: <FileText className="h-4 w-4" />, color: 'text-blue-500', bg: 'bg-blue-50', available: !!overview },
+    { id: TOOL_IDS.QUIZ, name: 'Quiz', icon: <HelpCircle className="h-4 w-4" />, color: 'text-rose-500', bg: 'bg-rose-50', available: hasQuiz || !!quizData },
+    { id: TOOL_IDS.FLASHCARDS, name: 'Flashcards', icon: <Layers className="h-4 w-4" />, color: 'text-orange-500', bg: 'bg-orange-50', available: hasFlashcards || !!flashcardsData },
+    { id: TOOL_IDS.NOTES, name: 'Notes', icon: <StickyNote className="h-4 w-4" />, color: 'text-amber-500', bg: 'bg-amber-50', available: true },
+    { id: TOOL_IDS.ROADMAP, name: 'Lesson Plan', icon: <Rocket className="h-4 w-4" />, color: 'text-emerald-500', bg: 'bg-emerald-50', available: hasRoadmap || !!roadmapData, isNew: true },
+    { id: TOOL_IDS.MIND_MAP, name: 'Mind Map', icon: <MapIcon className="h-4 w-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50', available: hasMindMap || !!mindMapData },
+    { id: TOOL_IDS.GLOSSARY, name: 'Glossary', icon: <Library className="h-4 w-4" />, color: 'text-purple-600', bg: 'bg-purple-50', available: true },
+    { id: TOOL_IDS.RESOURCES, name: 'Resources', icon: <BookMarked className="h-4 w-4" />, color: 'text-cyan-600', bg: 'bg-cyan-50', available: true },
   ];
 
   const handleAsk = () => {
     if (askInput.trim()) {
       let context = "";
-      if (activeSidebarTab === 'summary' && (overview || keyPoints || takeaways)) {
+      if (activeSidebarTab === TOOL_IDS.SUMMARY && (overview || keyPoints || takeaways)) {
         context = `[Summary Context]:\nOverview: ${overview || "N/A"}\nKey Points: ${keyPoints?.join(", ") || "N/A"}\nTakeaways: ${takeaways?.join(", ") || "N/A"}`;
-      } else if (activeSidebarTab === 'quiz' && quizData) {
+      } else if (activeSidebarTab === TOOL_IDS.QUIZ && quizData) {
         context = `[Quiz Context]:\n${quizData.map((q, i) => `Q${i+1}: ${q.question}`).join("\n")}`;
-      } else if (activeSidebarTab === 'roadmap' && roadmapData) {
+      } else if (activeSidebarTab === TOOL_IDS.ROADMAP && roadmapData) {
         context = `[Roadmap Context]:\nTitle: ${roadmapData.title}\nSteps: ${roadmapData.steps.map(s => `${s.step}. ${s.task}`).join(", ")}`;
-      } else if (activeSidebarTab === 'flashcards' && flashcardsData) {
+      } else if (activeSidebarTab === TOOL_IDS.FLASHCARDS && flashcardsData) {
         context = `[Flashcards Context]:\n${flashcardsData.slice(0, 5).map((f, i) => `Card ${i+1}: ${f.front}`).join("\n")}`;
       }
-      
+
       onToolClick?.(activeSidebarTab, askInput.trim(), context);
       setAskInput("");
     }
@@ -164,21 +179,28 @@ const LearnTools = ({
   const activeTabs = useMemo(() => {
     const allTabs = [
       { id: 'learn', name: 'Learn', icon: <LayoutGrid className="h-3 w-3" /> },
-      { id: 'synthesis', name: 'Synthesis', icon: <Brain className="h-3 w-3" /> },
-      { id: 'quiz', name: 'Quiz', icon: <HelpCircle className="h-3 w-3" /> },
-      { id: 'flashcards', name: 'Flashcards', icon: <Layers className="h-3 w-3" /> },
-      { id: 'roadmap', name: 'Roadmap', icon: <Brain className="h-3 w-3" /> },
-      { id: 'mindmap', name: 'Mind Map', icon: <MapIcon className="h-3 w-3" /> },
-      { id: 'notes', name: 'Notes', icon: <StickyNote className="h-3 w-3" /> },
+      { id: TOOL_IDS.SYNTHESIS, name: 'Synthesis', icon: <Brain className="h-3 w-3" /> },
+      { id: TOOL_IDS.SUMMARY, name: 'Summary', icon: <FileText className="h-3 w-3" /> },
+      { id: TOOL_IDS.CHAPTERS, name: 'Chapters', icon: <List className="h-3 w-3" /> },
+      { id: TOOL_IDS.TRANSCRIPT, name: 'Transcript', icon: <FileText className="h-3 w-3" /> },
+      { id: TOOL_IDS.QUIZ, name: 'Quiz', icon: <HelpCircle className="h-3 w-3" /> },
+      { id: TOOL_IDS.FLASHCARDS, name: 'Flashcards', icon: <Layers className="h-3 w-3" /> },
+      { id: TOOL_IDS.ROADMAP, name: 'Roadmap', icon: <Brain className="h-3 w-3" /> },
+      { id: TOOL_IDS.MIND_MAP, name: 'Mind Map', icon: <MapIcon className="h-3 w-3" /> },
+      { id: TOOL_IDS.NOTES, name: 'Notes', icon: <StickyNote className="h-3 w-3" /> },
+      { id: TOOL_IDS.VIDEO, name: 'Video', icon: <Video className="h-3 w-3" /> },
+      { id: TOOL_IDS.GLOSSARY, name: 'Glossary', icon: <Library className="h-3 w-3" /> },
+      { id: TOOL_IDS.RESOURCES, name: 'Resources', icon: <BookMarked className="h-3 w-3" /> },
+      { id: TOOL_IDS.PODCAST, name: 'Podcast', icon: <Headphones className="h-3 w-3" /> },
     ];
-    
+
     return allTabs.filter(tab => openTabs.includes(tab.id));
   }, [openTabs]);
 
   const renderActiveTool = () => {
     switch (activeSidebarTab) {
-      case 'podcast':
-        if (generatingTools.includes('podcast')) {
+      case TOOL_IDS.PODCAST:
+        if (generatingTools.includes(TOOL_IDS.PODCAST)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-indigo-50 mx-auto flex items-center justify-center">
@@ -228,8 +250,9 @@ const LearnTools = ({
             </Button>
           </div>
         );
-      case 'chapters':
-      case 'summary':
+      case TOOL_IDS.SUMMARY:
+      case TOOL_IDS.CHAPTERS:
+      case TOOL_IDS.SYNTHESIS:
         return (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading summary...</div>}>
             <SynthesisTab 
@@ -242,10 +265,160 @@ const LearnTools = ({
               onTimestampClick={onTimestampClick}
               timestamps={timestamps}
               isGenerating={generatingTools.length > 0}
+              aiExplanation={aiExplanation}
+              onClearExplanation={onClearExplanation}
+              onAIAction={onAIAction}
             />
           </Suspense>
         );
-      case 'transcript':
+      case TOOL_IDS.VIDEO:
+        return (
+          <div className="p-6">
+            <div className="flex items-center gap-4 p-6 rounded-[2.5rem] bg-blue-50 border border-blue-100 shadow-xl shadow-blue-500/10 mb-8">
+              <div className="w-16 h-16 rounded-3xl bg-blue-600 flex items-center justify-center shadow-lg">
+                <Video className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-blue-900 leading-tight">Mastery Video</h3>
+                <p className="text-sm font-bold text-blue-400 mt-1 uppercase tracking-widest">Active Player Context</p>
+              </div>
+            </div>
+            <div className="p-8 bg-gray-50/50 border border-gray-100 rounded-[2.5rem] space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Player Navigation</h4>
+                <p className="text-sm font-medium leading-relaxed text-gray-600">
+                    The video is playing in the main viewport on the left. Use the **Chapters** and **Transcript** tabs to navigate to specific insights. You can also ask follow-up questions about specific moments here.
+                </p>
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                    <Button variant="outline" className="rounded-2xl border-gray-100 font-bold text-[10px] h-10 uppercase tracking-widest" onClick={() => onSidebarTabChange?.('chapters')}>
+                        Open Chapters
+                    </Button>
+                    <Button variant="outline" className="rounded-2xl border-gray-100 font-bold text-[10px] h-10 uppercase tracking-widest" onClick={() => onSidebarTabChange?.('transcripts')}>
+                        View Transcript
+                    </Button>
+                </div>
+            </div>
+          </div>
+        );
+      case TOOL_IDS.GLOSSARY:
+        if (activeGeneratingTools.includes(TOOL_IDS.GLOSSARY)) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-purple-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-purple-900">Term Analysis</h3>
+                 <p className="text-xs font-medium text-gray-400">Extracting video-specific jargon...</p>
+               </div>
+            </div>
+          );
+        }
+        return (
+          <div className="p-6">
+             <div className="flex items-center gap-4 p-6 rounded-[2.5rem] bg-purple-50 border border-purple-100 shadow-xl shadow-purple-500/10 mb-8">
+              <div className="w-16 h-16 rounded-3xl bg-purple-600 flex items-center justify-center shadow-lg">
+                <Library className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-purple-900 leading-tight">Video Glossary</h3>
+                <p className="text-sm font-bold text-purple-400 mt-1 uppercase tracking-widest">Terminology Mastery</p>
+              </div>
+            </div>
+
+            {summaryData?.glossary?.length ? (
+                <div className="space-y-4">
+                    {summaryData.glossary.map((item: any, i: number) => (
+                        <motion.div 
+                            key={i}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            className="p-6 rounded-[2rem] bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all group"
+                        >
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                    <BookOpen className="h-4 w-4" />
+                                </div>
+                                <h4 className="text-sm font-black text-gray-900 tracking-tight">{item.term}</h4>
+                            </div>
+                            <p className="text-xs text-gray-500 font-medium leading-relaxed pl-11">
+                                {item.definition}
+                            </p>
+                        </motion.div>
+                    ))}
+                </div>
+            ) : (
+                <div className="p-8 bg-gray-50/30 border border-dashed border-gray-200 rounded-[2.5rem] text-center space-y-4">
+                    <p className="text-xs font-bold text-gray-400">No terms analyzed yet.</p>
+                </div>
+            )}
+          </div>
+        );
+      case TOOL_IDS.RESOURCES:
+        if (activeGeneratingTools.includes(TOOL_IDS.RESOURCES)) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-cyan-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-cyan-200 border-t-cyan-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-cyan-900">Finding Mentions</h3>
+                 <p className="text-xs font-medium text-gray-400">Scanning for tools, books and links...</p>
+               </div>
+            </div>
+          );
+        }
+        return (
+          <div className="p-6">
+             <div className="flex items-center gap-4 p-6 rounded-[2.5rem] bg-cyan-50 border border-cyan-100 shadow-xl shadow-cyan-500/10 mb-8">
+              <div className="w-16 h-16 rounded-3xl bg-cyan-600 flex items-center justify-center shadow-lg">
+                <ExternalLink className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-cyan-900 leading-tight">Resource Hub</h3>
+                <p className="text-sm font-bold text-cyan-400 mt-1 uppercase tracking-widest">External References</p>
+              </div>
+            </div>
+
+            {summaryData?.resources?.length ? (
+                <div className="space-y-4">
+                    {summaryData.resources.map((res: any, i: number) => (
+                        <motion.div 
+                            key={i}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: i * 0.05 }}
+                            className="p-6 rounded-[2rem] bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden group"
+                        >
+                            <div className="flex items-start justify-between">
+                                <div className="space-y-1">
+                                    <h4 className="text-sm font-black text-gray-900 tracking-tight">{res.name}</h4>
+                                    <p className="text-[10px] text-gray-500 font-bold leading-relaxed pr-4">
+                                        {res.description}
+                                    </p>
+                                </div>
+                                {res.url && (
+                                    <a 
+                                        href={res.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="p-3 rounded-2xl bg-cyan-50 text-cyan-600 hover:bg-cyan-600 hover:text-white transition-all ring-4 ring-cyan-50/50"
+                                    >
+                                        <ExternalLink className="h-4 w-4" />
+                                    </a>
+                                )}
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+            ) : (
+                <div className="p-8 bg-gray-50/30 border border-dashed border-gray-200 rounded-[2.5rem] text-center space-y-4">
+                    <p className="text-xs font-bold text-gray-400">No resources found yet.</p>
+                </div>
+            )}
+          </div>
+        );
+      case TOOL_IDS.TRANSCRIPT:
         return (
           <div className="p-6">
             <div className="flex items-center gap-3 mb-8">
@@ -259,8 +432,8 @@ const LearnTools = ({
             </div>
           </div>
         );
-      case 'quiz':
-        if (generatingTools.includes('quiz')) {
+      case TOOL_IDS.QUIZ:
+        if (generatingTools.includes(TOOL_IDS.QUIZ)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-rose-50 mx-auto flex items-center justify-center">
@@ -287,8 +460,8 @@ const LearnTools = ({
             </div>
           </Suspense>
         ) : null;
-      case 'flashcards':
-        if (generatingTools.includes('flashcards')) {
+      case TOOL_IDS.FLASHCARDS:
+        if (generatingTools.includes(TOOL_IDS.FLASHCARDS)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-orange-50 mx-auto flex items-center justify-center">
@@ -315,8 +488,8 @@ const LearnTools = ({
              </div>
           </Suspense>
         ) : null;
-      case 'roadmap':
-        if (generatingTools.includes('roadmap')) {
+      case TOOL_IDS.ROADMAP:
+        if (generatingTools.includes(TOOL_IDS.ROADMAP)) {
           return (
             <div className="p-12 text-center space-y-6 animate-pulse">
                <div className="w-20 h-20 rounded-[2.5rem] bg-emerald-50 mx-auto flex items-center justify-center">
@@ -330,39 +503,18 @@ const LearnTools = ({
           );
         }
         return roadmapData ? (
-          <div className="relative pl-6 pr-2 py-8 space-y-12">
-             <div className="absolute left-10 top-12 bottom-12 w-px border-l-2 border-dashed border-gray-100 z-0" />
-             
-             <div className="flex items-center gap-4 mb-4 relative z-10 bg-white pb-4">
-                <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center shadow-xl shadow-black/10">
-                   <Rocket className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black tracking-tight">{roadmapData.title || "Mastery Path"}</h3>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{roadmapData.steps.length} Milestones</p>
-                </div>
-             </div>
-
-             {roadmapData.steps.map((step, i) => (
-                <div key={i} className="relative z-10 flex items-start gap-6 group">
-                   <div className={cn(
-                     "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-black text-[10px] shadow-md transition-all group-hover:scale-110 border-2",
-                     i === 0 ? "bg-black border-black text-white" : "bg-white border-gray-100 text-gray-400 group-hover:border-black group-hover:text-black"
-                   )}>
-                     {step.step}
-                   </div>
-                   <div className="flex-1 space-y-2 pt-0.5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Stage {step.step}</p>
-                      <h4 className="text-sm font-bold text-gray-900 leading-tight group-hover:text-black transition-colors">{step.task}</h4>
-                      <div className="p-5 rounded-[2rem] bg-gray-50/50 border border-gray-50 text-[11px] font-medium text-gray-500 leading-relaxed group-hover:bg-white group-hover:border-gray-100 group-hover:shadow-lg group-hover:shadow-black/5 transition-all">
-                         {step.description}
-                      </div>
-                   </div>
-                </div>
-             ))}
-          </div>
+          <Suspense fallback={<LoadingState />}>
+            <RoadmapTab 
+              roadmap={roadmapData} 
+              onAIAction={onAIAction}
+              onGenerateMore={() => onGenerate?.('roadmap', true)}
+              isGenerating={generatingTools.includes('roadmap')}
+              roadmapAIExplanation={roadmapAIExplanation}
+              onClearExplanation={onClearExplanation}
+            />
+          </Suspense>
         ) : null;
-      case 'mindmap':
+      case TOOL_IDS.MIND_MAP:
         return mindMapData ? (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading mind map...</div>}>
             <div className="h-[500px] border border-gray-100 bg-gray-50/30 rounded-3xl overflow-hidden mt-4">
@@ -370,11 +522,70 @@ const LearnTools = ({
             </div>
           </Suspense>
         ) : null;
-      case 'notes':
+      case TOOL_IDS.NOTES:
+        if (generatingTools.includes(TOOL_IDS.NOTES)) {
+          return (
+            <div className="p-12 text-center space-y-6 animate-pulse">
+               <div className="w-20 h-20 rounded-[2.5rem] bg-amber-50 mx-auto flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-600 animate-spin rounded-full" />
+               </div>
+               <div className="space-y-2">
+                 <h3 className="text-lg font-black text-amber-900">Note Crafting</h3>
+                 <p className="text-xs font-medium text-gray-400">Synthesizing study materials...</p>
+               </div>
+            </div>
+          );
+        }
         return (
           <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading notes...</div>}>
-            <div className="mt-4">
+            <div className="mt-4 space-y-6">
               <NotesTool />
+              <div className="p-8 bg-amber-50 rounded-[2.5rem] border border-amber-100/50 text-center space-y-4">
+                 <div className="w-12 h-12 rounded-2xl bg-amber-200/50 mx-auto flex items-center justify-center text-amber-600">
+                    <Sparkles className="h-6 w-6" />
+                 </div>
+                 <div className="space-y-1">
+                    <h4 className="text-sm font-black text-amber-900">AI Study Assistant</h4>
+                    <p className="text-xs font-bold text-amber-500/60 uppercase tracking-wider">Enhance your drafts</p>
+                 </div>
+                 <Button 
+                    onClick={() => onToolClick?.('notes', 'Create comprehensive study notes from this video content.', '[Action]: Generate AI Notes')}
+                    className="w-full rounded-2xl bg-amber-600 hover:bg-amber-700 font-black uppercase tracking-widest text-[10px] h-12"
+                 >
+                    Inject AI Insights
+                 </Button>
+              </div>
+
+              {/* AI Breakdown for Notes */}
+              <AnimatePresence>
+                {currentToolMessages.length > 0 && (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-gray-900 rounded-[2.5rem] p-8 border border-white/10 shadow-2xl"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-amber-400" />
+                                <span className="text-[10px] font-black text-amber-100 uppercase tracking-widest">AI Insights</span>
+                            </div>
+                            <button 
+                                onClick={() => setShowConversation(true)}
+                                className="text-[10px] font-bold text-amber-400 hover:text-white underline underline-offset-4"
+                            >
+                                Discuss in Chat
+                            </button>
+                        </div>
+                        <div className="prose prose-invert prose-sm max-w-none">
+                            <RichMessage 
+                                content={currentToolMessages[currentToolMessages.length - 1].content} 
+                                role="assistant" 
+                                className="text-gray-300"
+                            />
+                        </div>
+                    </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </Suspense>
         );
@@ -419,6 +630,19 @@ const LearnTools = ({
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl bg-gray-50/50">
                <Plus className="h-4 w-4 text-gray-400" />
             </Button>
+            <button 
+              onClick={() => setShowConversation(!showConversation)}
+              className={cn(
+                "p-2 rounded-lg transition-colors group ml-1 relative",
+                showConversation ? "bg-black text-white" : "hover:bg-gray-100 text-gray-400"
+              )}
+              title="Toggle Discussion Chat"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {currentToolMessages.length > 0 && !showConversation && (
+                <div className="absolute top-1 right-1 w-2 h-2 bg-indigo-500 rounded-full border-2 border-white animate-pulse" />
+              )}
+            </button>
             <button 
               onClick={onMaximize}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors group ml-1"
@@ -535,7 +759,6 @@ const LearnTools = ({
                           <button
                             key={tool.id}
                             onClick={() => {
-                              if (tool.id === 'video') return;
                               onToolClick?.(tool.id);
                             }}
                             className={cn(
@@ -589,18 +812,18 @@ const LearnTools = ({
                             <div className={cn(
                               "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
                               set.isGenerating ? "bg-gray-50 text-gray-400" : (
-                                set.type === 'quiz' ? "bg-red-50 text-red-500" : 
-                                set.type === 'roadmap' ? "bg-emerald-50 text-emerald-500" :
-                                set.type === 'flashcards' ? "bg-amber-50 text-amber-500" :
-                                set.type === 'summary' ? "bg-blue-50 text-blue-500" :
+                                set.type === TOOL_IDS.QUIZ ? "bg-red-50 text-red-500" :
+                                set.type === TOOL_IDS.ROADMAP ? "bg-emerald-50 text-emerald-500" :
+                                set.type === TOOL_IDS.FLASHCARDS ? "bg-amber-50 text-amber-500" :
+                                set.type === TOOL_IDS.SUMMARY ? "bg-blue-50 text-blue-500" :
                                 "bg-indigo-50 text-indigo-500"
                               )
                             )}>
                                {set.isGenerating ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 animate-spin rounded-full" /> : (
-                                 set.type === 'quiz' ? <HelpCircle className="h-5 w-5" /> : 
-                                  set.type === 'roadmap' ? <Target className="h-5 w-5" /> :
-                                  set.type === 'flashcards' ? <Layers className="h-5 w-5" /> :
-                                  set.type === 'summary' ? <FileText className="h-5 w-5" /> :
+                                 set.type === TOOL_IDS.QUIZ ? <HelpCircle className="h-5 w-5" /> :
+                                  set.type === TOOL_IDS.ROADMAP ? <Target className="h-5 w-5" /> :
+                                  set.type === TOOL_IDS.FLASHCARDS ? <Layers className="h-5 w-5" /> :
+                                  set.type === TOOL_IDS.SUMMARY ? <FileText className="h-5 w-5" /> :
                                   <Headphones className="h-5 w-5" />
                                )}
                             </div>
@@ -608,9 +831,9 @@ const LearnTools = ({
                               <p className="text-[13px] font-black text-gray-800 line-clamp-1">{set.name}</p>
                               <p className="text-[10px] font-bold text-gray-400 mt-0.5 opacity-80 uppercase tracking-tighter">
                                   {set.isGenerating ? 'Content is being generated...' : (
-                                    set.type === 'quiz' ? '10 questions left • All topics' : 
-                                     set.type === 'summary' ? 'Detailed Summary • All topics' :
-                                     set.type === 'roadmap' ? 'Personalized Learning Path' :
+                                    set.type === TOOL_IDS.QUIZ ? '10 questions left • All topics' :
+                                     set.type === TOOL_IDS.SUMMARY ? 'Detailed Summary • All topics' :
+                                     set.type === TOOL_IDS.ROADMAP ? 'Personalized Learning Path' :
                                      'Processed Analysis'
                                   )}
                               </p>
@@ -634,11 +857,11 @@ const LearnTools = ({
                   </div>
                 )}
               </div>
-            </ScrollArea>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Large Bottom Input Section - Fixed at bottom */}
       <div className="p-6 pt-2 bg-white border-t border-gray-50 shrink-0">

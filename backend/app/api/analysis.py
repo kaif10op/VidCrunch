@@ -2,6 +2,7 @@
 
 from uuid import UUID
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -10,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.models import Analysis, Transcript, User, Video
-from app.schemas.schemas import AnalysisDetailResponse, AnalysisResponse, MessageResponse, VideoResponse
+from app.schemas.schemas import AnalysisDetailResponse, AnalysisResponse, MessageResponse, VideoResponse, AnalysisNotesUpdate
 from app.services.ai_pipeline import synthesize_content
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/{analysis_id}", response_model=AnalysisDetailResponse)
@@ -92,6 +94,28 @@ async def list_analyses(
     return responses
 
 
+@router.patch("/{analysis_id}/notes", response_model=AnalysisResponse)
+async def update_analysis_notes(
+    analysis_id: UUID,
+    update_data: AnalysisNotesUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update user notes for a specific analysis."""
+    result = await db.execute(
+        select(Analysis).where(Analysis.id == analysis_id, Analysis.user_id == user.id)
+    )
+    analysis = result.scalar_one_or_none()
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis.user_notes = update_data.user_notes
+    await db.commit()
+    await db.refresh(analysis)
+
+    return analysis
+
+
 @router.get("/{analysis_id}/status")
 async def get_analysis_status(
     analysis_id: UUID,
@@ -141,8 +165,9 @@ async def delete_analysis(
 @router.post("/{analysis_id}/generate", response_model=AnalysisResponse)
 async def generate_tool(
     analysis_id: UUID,
-    tool_type: str = Query(..., pattern="^(overview|key_points|tags|quiz|roadmap|mind_map|flashcards|takeaways|learning_context|podcast)$"),
+    tool_type: str = Query(..., pattern="^(overview|key_points|tags|quiz|roadmap|mind_map|flashcards|takeaways|learning_context|podcast|glossary|resources)$"),
     append: bool = Query(False),
+    force: bool = Query(False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -154,9 +179,9 @@ async def generate_tool(
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # If tool already exists and not appending, just return it
+    # If tool already exists and not appending/forcing, just return it
     existing_value = getattr(analysis, tool_type)
-    if existing_value is not None and not append:
+    if existing_value is not None and not append and not force:
         return AnalysisResponse.model_validate(analysis)
 
     existing_context = None
@@ -183,15 +208,19 @@ async def generate_tool(
     }
 
     # Call targeted synthesis for ONLY this tool
-    ai_result = await synthesize_content(
-        transcript_text=transcript.full_text,
-        metadata=metadata,
-        expertise=analysis.expertise_level,
-        style=analysis.style,
-        minimal_mode=False,
-        tools=[tool_type],
-        existing_data=existing_context,
-    )
+    try:
+        ai_result = await synthesize_content(
+            transcript_text=transcript.full_text,
+            metadata=metadata,
+            expertise=analysis.expertise_level,
+            style=analysis.style,
+            minimal_mode=False,
+            tools=[tool_type],
+            existing_data=existing_context,
+        )
+    except Exception as e:
+        logger.error(f"AI generation failed: {e}")
+        raise HTTPException(status_code=500, detail="AI generation error: " + str(e))
 
     # Update analysis with the new tool
     if tool_type in ai_result:

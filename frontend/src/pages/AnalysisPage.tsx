@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Play, GraduationCap } from "lucide-react";
+import { X, Play, GraduationCap, Map as MapIcon, FileText, List, Settings2 } from "lucide-react";
 import { useAnalysisContext } from "@/contexts/AnalysisContext";
 import { useUIContext } from "@/contexts/UIContext";
 import { useSpacesContext } from "@/contexts/SpacesContext";
@@ -11,14 +11,17 @@ import SummaryDisplay from "@/components/SummaryDisplay";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import LearnTools from "@/components/LearnTools";
 import { Button } from "@/components/ui/button";
+import MindMapDetail from "@/components/MindMapDetail";
+import { TOOL_IDS, UTILITY_TOOLS } from "@/lib/toolConstants";
 
 export default function AnalysisPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [isMobileLearnOpen, setIsMobileLearnOpen] = useState(false);
-  const [activeSidebarTab, setActiveSidebarTab] = useState("summary");
-  const [openSidebarTabs, setOpenSidebarTabs] = useState<string[]>(["learn", "summary"]);
+  const [activeSidebarTab, setActiveSidebarTab] = useState("learn");
+  const [openSidebarTabs, setOpenSidebarTabs] = useState<string[]>(["learn"]);
   const [isSidebarMaximized, setIsSidebarMaximized] = useState(false);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
 
   const {
     videoData,
@@ -42,11 +45,14 @@ export default function AnalysisPage() {
     setAiExplanation,
     quizAIExplanation,
     setQuizAIExplanation,
+    roadmapAIExplanation,
+    setRoadmapAIExplanation,
     handleTimestampClick,
     handleToolClick,
     handleGenerateTool,
     handleAddToSpace,
-    loadAnalysis
+    loadAnalysis,
+    clearExplanation
   } = useAnalysisContext();
 
   const { isFocusMode, setIsFocusMode, isVideoMinimized, setIsVideoMinimized } = useUIContext();
@@ -108,12 +114,14 @@ export default function AnalysisPage() {
   };
 
   const sets = useMemo(() => [
-    { id: 'summary', name: 'Overview & Insights', date: 'Generated', type: 'summary', isGenerating: false },
-    ...(summaryData?.quiz?.length ? [{ id: 'quiz', name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
-    ...(summaryData?.flashcards?.length ? [{ id: 'flashcards', name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
-    ...(summaryData?.roadmap ? [{ id: 'roadmap', name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
-    ...(summaryData?.mind_map ? [{ id: 'mind_map', name: 'Mind Map', date: 'Generated', type: 'mindmap', isGenerating: false }] : []),
-    ...(summaryData?.podcast ? [{ id: 'podcast', name: 'Audio Podcast', date: 'Generated', type: 'podcast', isGenerating: false }] : []),
+    { id: TOOL_IDS.SUMMARY, name: 'Overview & Insights', date: 'Generated', type: 'summary', isGenerating: false },
+    ...(summaryData?.quiz?.length ? [{ id: TOOL_IDS.QUIZ, name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
+    ...(summaryData?.flashcards?.length ? [{ id: TOOL_IDS.FLASHCARDS, name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
+    ...(summaryData?.roadmap ? [{ id: TOOL_IDS.ROADMAP, name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
+    ...(summaryData?.mind_map ? [{ id: TOOL_IDS.MIND_MAP, name: 'Mind Map', date: 'Generated', type: 'mindmap', isGenerating: false }] : []),
+    ...(summaryData?.podcast ? [{ id: TOOL_IDS.PODCAST, name: 'Audio Podcast', date: 'Generated', type: 'podcast', isGenerating: false }] : []),
+    ...(summaryData?.glossary?.length ? [{ id: TOOL_IDS.GLOSSARY, name: 'Video Glossary', date: 'Generated', type: 'glossary' }] : []),
+    ...(summaryData?.resources?.length ? [{ id: TOOL_IDS.RESOURCES, name: 'Resource Hub', date: 'Generated', type: 'resources' }] : []),
     ...(generatingTools.map(toolId => ({
       id: `gen-${toolId}`,
       name: `Generating ${toolId.charAt(0).toUpperCase() + toolId.slice(1)}...`,
@@ -258,21 +266,96 @@ export default function AnalysisPage() {
                     animate={{ opacity: 1 }}
                     className="space-y-8"
                   >
-                    <SummaryDisplay 
-                      {...summaryData}
-                      transcript={transcript}
-                      transcript_segments={summaryData.transcript_segments}
-                      onTimestampClick={handleTimestampClick}
-                      spaces={spaces}
-                      onAddToSpace={handleAddToSpace}
-                      currentTime={currentTime}
-                      onToolClick={(toolId, value, context) => {
-                        handleToolClick(toolId, value, context);
-                        if (['chapters', 'transcript', 'summary'].includes(toolId)) {
-                          handleOpenTab(toolId);
-                        }
-                      }}
-                    />
+                    <div className="bg-white dark:bg-black rounded-[3rem] overflow-hidden border border-gray-100 dark:border-gray-800 shadow-xl shadow-black/5 dark:shadow-white/5">
+                      {/* Sub-navigation for Detail View */}
+                      <div className="flex items-center gap-6 px-10 pt-8 pb-4 border-b border-gray-50 dark:border-gray-900 bg-gray-50/30 dark:bg-gray-900/10">
+                        <button
+                          onClick={() => handleOpenTab(TOOL_IDS.CHAPTERS)}
+                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.CHAPTERS ? "text-indigo-600" : "text-gray-400 hover:text-gray-600")}
+                        >
+                          Chapters
+                          {activeSidebarTab === TOOL_IDS.CHAPTERS && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+                        </button>
+                        <button
+                          onClick={() => handleOpenTab(TOOL_IDS.TRANSCRIPT)}
+                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.TRANSCRIPT ? "text-indigo-600" : "text-gray-400 hover:text-gray-600")}
+                        >
+                          Transcript
+                          {activeSidebarTab === TOOL_IDS.TRANSCRIPT && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+                        </button>
+                        <button
+                          onClick={() => handleOpenTab(TOOL_IDS.MIND_MAP)}
+                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.MIND_MAP ? "text-indigo-600" : "text-gray-400 hover:text-gray-600")}
+                        >
+                          Mastery Map
+                          {activeSidebarTab === TOOL_IDS.MIND_MAP && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+                        </button>
+                      </div>
+
+                      {/* Unified Search/Scroll Controls for Detail View */}
+                      <div className="flex items-center gap-6 px-10 pt-4 pb-6 border-b border-gray-50 dark:border-gray-900">
+                        {activeSidebarTab === TOOL_IDS.TRANSCRIPT && (
+                          <button 
+                            onClick={() => setIsAutoScroll(!isAutoScroll)}
+                            className={cn(
+                              "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all shadow-sm",
+                              isAutoScroll ? "bg-black text-white border-black" : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50 dark:bg-black dark:border-gray-800"
+                            )}
+                          >
+                            <Settings2 className={cn("h-3.5 w-3.5", isAutoScroll ? "text-white" : "text-gray-400")} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Auto Scroll</span>
+                          </button>
+                        )}
+                        <div className="flex-1" />
+                        <div className="flex items-center gap-2 text-[10px] font-black text-gray-300 uppercase tracking-widest">
+                             <span>Detail View</span>
+                             <div className="w-1 h-1 rounded-full bg-gray-200" />
+                             <span className="text-gray-400">{activeSidebarTab.charAt(0).toUpperCase() + activeSidebarTab.slice(1)}</span>
+                        </div>
+                      </div>
+
+                      <div className="min-h-[600px]">
+                        {activeSidebarTab === TOOL_IDS.MIND_MAP ? (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="h-[700px] bg-slate-50/30"
+                          >
+                            <MindMapDetail 
+                              mindMap={summaryData.mind_map} 
+                              onAIAction={handleToolClick}
+                              onTimestampClick={handleTimestampClick}
+                              isGenerating={generatingTools.includes(TOOL_IDS.MIND_MAP)}
+                            />
+                          </motion.div>
+                        ) : (
+                          <SummaryDisplay 
+                            {...summaryData}
+                            activeTab={activeSidebarTab === TOOL_IDS.TRANSCRIPT ? 'transcripts' : (activeSidebarTab === TOOL_IDS.CHAPTERS ? 'chapters' : 'chapters')}
+                            onTabChange={(tab) => {
+                              const tabId = tab === 'chapters' ? TOOL_IDS.CHAPTERS : TOOL_IDS.TRANSCRIPT;
+                              handleOpenTab(tabId);
+                            }}
+                            transcript={transcript}
+                            transcript_segments={summaryData.transcript_segments}
+                            onTimestampClick={handleTimestampClick}
+                            spaces={spaces}
+                            onAddToSpace={handleAddToSpace}
+                            currentTime={currentTime}
+                            onToolClick={(toolId, value, context) => {
+                              handleToolClick(toolId, value, context);
+                              if ([TOOL_IDS.CHAPTERS, TOOL_IDS.TRANSCRIPT, TOOL_IDS.SUMMARY, TOOL_IDS.MIND_MAP].includes(toolId)) {
+                                handleOpenTab(toolId);
+                              }
+                            }}
+                            aiExplanation={aiExplanation}
+                            onClearExplanation={clearExplanation}
+                            isAutoScroll={isAutoScroll}
+                            setIsAutoScroll={setIsAutoScroll}
+                          />
+                        )}
+                      </div>
+                    </div>
                   </motion.div>
                 ) : null}
               </AnimatePresence>
@@ -284,26 +367,33 @@ export default function AnalysisPage() {
                 "hidden lg:block shrink-0 transition-all duration-500 overflow-hidden",
                 isSidebarMaximized ? "w-full h-screen" : "w-[380px] sticky top-6 self-start h-[calc(100vh-48px)]"
               )}>
-                <LearnTools 
+                <LearnTools
                   onToolClick={(toolId, value, context) => {
-                    const isAvailable = sets.some(s => s.type === toolId && !s.isGenerating);
-                    
+                    const utilityTools = UTILITY_TOOLS;
+                    const isAvailable = sets.some(s => s.type === toolId && !s.isGenerating) || utilityTools.includes(toolId as any);
+
                     if (value) {
                       // It's a follow-up or specific action (like hint)
                       handleToolClick(toolId, value, context);
                       return;
                     }
 
-                    // For grid clicks or set clicks:
+                    // If it's a utility tool, just open it
+                    if (utilityTools.includes(toolId as any)) {
+                      handleOpenTab(toolId);
+                      // Some utility tools also trigger an initial AI action if nothing exists
+                      handleToolClick(toolId);
+                      return;
+                    }
+
+                    // For generated tools (quiz, etc):
                     if (!isAvailable) {
                       handleGenerateTool(toolId);
                       return;
                     }
 
-                    // If available, open the tab
-                    if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'summary', 'chapters', 'transcript', 'podcast', 'notes'].includes(toolId)) {
-                      handleOpenTab(toolId);
-                    }
+                    // If already generated/available, open the tab
+                    handleOpenTab(toolId);
                   }} 
                   activeSidebarTab={activeSidebarTab}
                   onSidebarTabChange={setActiveSidebarTab}
@@ -331,10 +421,8 @@ export default function AnalysisPage() {
                   onAIAction={handleToolClick}
                   aiExplanation={aiExplanation}
                   quizAIExplanation={quizAIExplanation}
-                  onClearExplanation={() => {
-                    setAiExplanation(null);
-                    setQuizAIExplanation(null);
-                  }}
+                  roadmapAIExplanation={roadmapAIExplanation}
+                  onClearExplanation={clearExplanation}
                   sets={sets}
                 />
               </div>
@@ -374,19 +462,30 @@ export default function AnalysisPage() {
                   <div className="p-1 flex justify-center">
                     <div className="w-10 h-1 rounded-full bg-gray-200" />
                   </div>
-                  <LearnTools 
-                    onToolClick={(id, v, c) => { 
-                      const isAvailable = sets.some(s => s.type === id && !s.isGenerating);
-                      if (!isAvailable && !v) {
+                  <LearnTools
+                    onToolClick={(id, v, c) => {
+                      const utilityTools = UTILITY_TOOLS;
+                      const isAvailable = sets.some(s => s.type === id && !s.isGenerating) || utilityTools.includes(id as any);
+
+                      if (v) {
+                        handleToolClick(id, v, c);
+                        return;
+                      }
+
+                      if (utilityTools.includes(id as any)) {
+                        handleOpenTab(id);
+                        handleToolClick(id);
+                        setIsMobileLearnOpen(false);
+                        return;
+                      }
+
+                      if (!isAvailable) {
                         handleGenerateTool(id);
                         return;
                       }
-                      handleToolClick(id, v, c); 
-                      if (['quiz', 'flashcards', 'roadmap', 'mindmap', 'summary'].includes(id)) {
-                        handleOpenTab(id);
-                      } else {
-                        setIsMobileLearnOpen(false); 
-                      }
+
+                      handleOpenTab(id);
+                      setIsMobileLearnOpen(false); 
                     }}
                     activeSidebarTab={activeSidebarTab}
                     onSidebarTabChange={setActiveSidebarTab}

@@ -155,7 +155,7 @@ const Index = () => {
     }
   };
 
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     const token = getAuthToken();
     if (!token) {
       setUser(null);
@@ -169,7 +169,7 @@ const Index = () => {
         fetchHistory(),
         fetchSpaces()
       ]);
-      
+
       setHistoryItems(hItems);
       setSpaces(sItems);
 
@@ -197,7 +197,7 @@ const Index = () => {
     } catch (err) {
       logger.error("Auth sync failed", err);
     }
-  };
+  }, []); // Empty deps: all used functions are stable (imported or setters)
 
   const handleLogout = () => {
     removeAuthToken();
@@ -307,7 +307,7 @@ const Index = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [fetchUserData]); // fetchUserData is stable due to useCallback
 
   useEffect(() => {
     const token = getAuthToken();

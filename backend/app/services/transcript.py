@@ -9,6 +9,8 @@ Pipeline:
 
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import os
 import re
 import subprocess
@@ -61,51 +63,51 @@ class TranscriptEngine:
         url = f"https://www.youtube.com/watch?v={video_id}"
 
         # Stage 1: youtube-transcript-api
-        print(f"DEBUG [{video_id}]: Stage 1 start...", flush=True)
+        logger.info(f"DEBUG [{video_id}]: Stage 1 start...", )
         result = await self._try_transcript_api(video_id)
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
             result.source = "youtube_transcript_api"
-            print(f"DEBUG [{video_id}]: Stage 1 success.", flush=True)
+            logger.info(f"DEBUG [{video_id}]: Stage 1 success.", )
             return result
 
         # Stage 2: Manual captions
-        print(f"DEBUG [{video_id}]: Stage 2 start...", flush=True)
+        logger.info(f"DEBUG [{video_id}]: Stage 2 start...", )
         result = await self._try_ytdlp_captions(url, auto=False)
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
             result.source = "manual_captions"
-            print(f"DEBUG [{video_id}]: Stage 2 success.", flush=True)
+            logger.info(f"DEBUG [{video_id}]: Stage 2 success.", )
             return result
 
         # Stage 3: Auto-generated captions
-        print(f"DEBUG [{video_id}]: Stage 3 start...", flush=True)
+        logger.info(f"DEBUG [{video_id}]: Stage 3 start...", )
         result = await self._try_ytdlp_captions(url, auto=True)
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
             result.source = "auto_captions"
-            print(f"DEBUG [{video_id}]: Stage 3 success.", flush=True)
+            logger.info(f"DEBUG [{video_id}]: Stage 3 success.", )
             return result
 
         # Stage 4: Groq Cloud Whisper (Fast, zero CPU)
-        print(f"DEBUG [{video_id}]: Stage 4 start (Groq Cloud)...", flush=True)
+        logger.info(f"DEBUG [{video_id}]: Stage 4 start (Groq Cloud)...", )
         result = await self._try_groq_whisper(url, video_id)
         if result and result.word_count >= self.MIN_WORD_COUNT:
             result.source = "groq_whisper"
-            print(f"DEBUG [{video_id}]: Stage 4 success.", flush=True)
+            logger.info(f"DEBUG [{video_id}]: Stage 4 success.", )
             return result
 
         # Stage 5: Gemini Cloud (Fast, zero CPU)
-        print(f"DEBUG [{video_id}]: Stage 5 start (Gemini Cloud)...", flush=True)
+        logger.info(f"DEBUG [{video_id}]: Stage 5 start (Gemini Cloud)...", )
         result = await self._try_gemini_whisper(url, video_id)
         if result and result.word_count >= self.MIN_WORD_COUNT:
             result.source = "gemini_cloud"
-            print(f"DEBUG [{video_id}]: Stage 5 success.", flush=True)
+            logger.info(f"DEBUG [{video_id}]: Stage 5 success.", )
             return result
 
         # Stage 6: Local Whisper (Slow fallback)
-        print(f"DEBUG [{video_id}]: Stage 6 start (Local Whisper)...", flush=True)
+        logger.info(f"DEBUG [{video_id}]: Stage 6 start (Local Whisper)...", )
         result = await self._try_whisper(url, video_id)
         if result and result.word_count >= self.MIN_WORD_COUNT:
             result.source = "local_whisper"
-            print(f"DEBUG [{video_id}]: Stage 6 success.", flush=True)
+            logger.info(f"DEBUG [{video_id}]: Stage 6 success.", )
             return result
 
         # All stages failed
@@ -247,15 +249,15 @@ class TranscriptEngine:
                 f_proc = await _run_subprocess(ffmpeg_cmd, timeout=300)
                 if f_proc.returncode == 0 and os.path.exists(compressed_audio):
                     actual_audio = compressed_audio
-                    print(f"DEBUG [{video_id}]: ffmpeg compression successful.", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: ffmpeg compression successful.", )
                 else:
-                    print(f"DEBUG [{video_id}]: ffmpeg compression failed (code {f_proc.returncode})", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: ffmpeg compression failed (code {f_proc.returncode})", )
 
                 size_mb = os.path.getsize(actual_audio) / (1024 * 1024)
-                print(f"DEBUG [{video_id}]: Uploading {os.path.basename(actual_audio)} to Groq ({size_mb:.2f} MB)", flush=True)
+                logger.info(f"DEBUG [{video_id}]: Uploading {os.path.basename(actual_audio)} to Groq ({size_mb:.2f} MB)", )
 
                 if size_mb > 25:
-                    print(f"DEBUG [{video_id}]: File too large for Groq ({size_mb:.2f} MB), falling back", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: File too large for Groq ({size_mb:.2f} MB), falling back", )
                     return None
 
                 # Call Groq API using official SDK
@@ -293,7 +295,7 @@ class TranscriptEngine:
                             word_count=len(full_text.split()),
                         )
                 except Exception as sdk_err:
-                    print(f"DEBUG [{video_id}]: Groq SDK error: {sdk_err}", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: Groq SDK error: {sdk_err}", )
                     return None
 
         except Exception as e:
@@ -341,7 +343,7 @@ class TranscriptEngine:
                 genai.configure(api_key=settings.GOOGLE_AI_KEY)
 
                 # 1. Upload to Files API
-                print(f"DEBUG [{video_id}]: Uploading to Gemini Files API...", flush=True)
+                logger.info(f"DEBUG [{video_id}]: Uploading to Gemini Files API...", )
                 
                 # SDK doesn't support async upload yet, so run in thread
                 import asyncio
@@ -350,9 +352,9 @@ class TranscriptEngine:
                 
                 try:
                     uploaded_file = await asyncio.to_thread(_upload_file)
-                    print(f"DEBUG [{video_id}]: Gemini Upload success: {uploaded_file.uri}", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: Gemini Upload success: {uploaded_file.uri}", )
                 except Exception as e:
-                    print(f"DEBUG [{video_id}]: Gemini Upload failed: {e}", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: Gemini Upload failed: {e}", )
                     return None
 
                 # 2. Generate content with structured output
@@ -406,7 +408,7 @@ class TranscriptEngine:
                         word_count=len(full_text.split()),
                     )
                 except Exception as e:
-                    print(f"DEBUG [{video_id}]: Gemini GenerateContent/Parse failed: {e}", flush=True)
+                    logger.info(f"DEBUG [{video_id}]: Gemini GenerateContent/Parse failed: {e}", )
                     return None
                 finally:
                     # Clean up file from Google Cloud (optional but good practice)

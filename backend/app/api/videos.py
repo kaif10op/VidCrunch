@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,13 +19,16 @@ from app.schemas.schemas import (
     MessageResponse,
 )
 from app.services.credit_service import check_and_deduct
+from app.middleware.rate_limit import limiter
 
 router = APIRouter()
 settings = get_settings()
 
 
 @router.post("/analyze", response_model=MessageResponse)
+@limiter.limit("10/minute")  # Rate limit video analysis
 async def analyze_videos(
+    request: Request,
     req: VideoAnalyzeRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -173,6 +176,9 @@ async def list_user_videos(
     offset: int = 0,
 ):
     """List videos the user has analyzed (via their analyses)."""
+    from sqlalchemy.orm import joinedload
+    from app.models.models import Analysis
+    
     result = await db.execute(
         select(Video)
         .join(Analysis, Analysis.video_id == Video.id)

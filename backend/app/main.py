@@ -1,12 +1,23 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.api import auth, videos, analysis, chat, spaces, credits, payments, export, search
+from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -14,11 +25,16 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup/shutdown lifecycle."""
-    # Startup
+    # Startup: Initialize Redis connection pool
+    from app.database import init_redis_pool
+    await init_redis_pool()
+    
     yield
-    # Shutdown
-    from app.database import engine
+    
+    # Shutdown: Cleanup
+    from app.database import engine, close_redis_pool
     await engine.dispose()
+    await close_redis_pool()
 
 
 app = FastAPI(
@@ -28,6 +44,10 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# ── Rate Limiting ──
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # ── CORS ──
 app.add_middleware(

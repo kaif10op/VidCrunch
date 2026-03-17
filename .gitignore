@@ -27,3 +27,5 @@ dist-ssr
 *.pyc
 .venv
 images/*
+.claude/*
+.claudecopy/*
