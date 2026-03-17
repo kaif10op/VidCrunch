@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { useSpaces as useSpacesHook } from "@/hooks/use-spaces";
+import { useSpaces as useSpacesHook } from "@/hooks/use-spaces.ts";
 import type { HistoryItem, Space } from "@/types";
 
 interface SpacesContextValue {

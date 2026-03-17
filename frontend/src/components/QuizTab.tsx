@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, ChevronRight, Brain, RotateCcw, Trophy, ArrowRight, Lightbulb, Baby, Footprints, HelpCircle, Send, Mic, Keyboard, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuizContext } from "@/contexts/QuizContext";
 import { cn } from "@/lib/utils";
 
 interface QuizQuestion {
@@ -28,26 +29,16 @@ const QuizTab = ({
   quizAIExplanation,
   onClearExplanation
 }: QuizTabProps) => {
-  const [quiz, setQuiz] = useState(initialQuiz);
-  const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [score, setScore] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const { quiz, setQuiz, current, setCurrent, selected, setSelected, score, setScore, finished, setFinished, answers, setAnswers, resetQuiz } = useQuizContext();
   const [chatInput, setChatInput] = useState("");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [lastCount, setLastCount] = useState(initialQuiz.length);
   const [showAdditionBadge, setShowAdditionBadge] = useState(false);
 
   useEffect(() => {
-    if (initialQuiz.length > lastCount) {
-      setShowAdditionBadge(true);
-      setTimeout(() => setShowAdditionBadge(false), 3000);
-      setLastCount(initialQuiz.length);
-    }
     setQuiz(initialQuiz);
     onClearExplanation?.();
-  }, [initialQuiz, lastCount, onClearExplanation]);
+  }, [initialQuiz, onClearExplanation]);
 
   useEffect(() => {
     onClearExplanation?.();
@@ -72,13 +63,9 @@ const QuizTab = ({
   }, [current, quiz.length]);
 
   const handleRestart = useCallback(() => {
-    setCurrent(0);
-    setSelected(null);
-    setScore(0);
-    setFinished(false);
-    setAnswers([]);
+    resetQuiz();
     onClearExplanation?.();
-  }, [onClearExplanation]);
+  }, [resetQuiz, onClearExplanation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -431,4 +418,4 @@ const QuizTab = ({
   );
 };
 
-export default QuizTab;
+export default memo(QuizTab);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ChevronRight, 
@@ -18,8 +18,8 @@ import {
   Keyboard,
   Command
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 interface Flashcard {
   front: string;
@@ -44,11 +44,7 @@ const Flashcards = ({
   aiExplanation,
   onClearExplanation
 }: FlashcardsProps) => {
-  const [cards, setCards] = useState(initialCards);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [mastered, setMastered] = useState<number[]>([]);
-  const [studyMode, setStudyMode] = useState<'spaced' | 'fast'>('fast');
+  const { cards, setCards, currentIndex, setCurrentIndex, mastered, setMastered, studyMode, setStudyMode, isFlipped, setIsFlipped, resetStudy } = useStudyContext();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ front: "", back: "" });
   const [isFinished, setIsFinished] = useState(false);
@@ -139,9 +135,7 @@ const Flashcards = ({
           setEditData({ front: cards[currentIndex]?.front || "", back: cards[currentIndex]?.back || "" });
           break;
         case 'r':
-          setCurrentIndex(0);
-          setIsFlipped(false);
-          setMastered([]);
+          resetStudy();
           break;
         case 'g':
         case '+':
@@ -550,17 +544,20 @@ const Flashcards = ({
 
       <AnimatePresence>
         {isEditing && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-card-title"
           >
             <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl relative border border-gray-100">
                <button onClick={() => setIsEditing(false)} className="absolute top-6 right-6 p-2 hover:bg-gray-50 rounded-xl transition-colors">
                   <X className="h-4 w-4" />
                </button>
-               <h3 className="text-xl font-bold mb-6">Edit Card</h3>
+               <h3 id="edit-card-title" className="text-xl font-bold mb-6">Edit Card</h3>
                <div className="space-y-6">
                   <div className="space-y-2">
                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Term / Question</label>
@@ -590,4 +587,4 @@ const Flashcards = ({
   );
 };
 
-export default Flashcards;
+export default memo(Flashcards);
