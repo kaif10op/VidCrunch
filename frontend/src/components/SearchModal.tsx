@@ -1,5 +1,5 @@
 import { Search, ArrowRight } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog.tsx";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useUIContext } from "@/contexts/UIContext";
 import { useAnalysisContext } from "@/contexts/AnalysisContext";
 import { useEffect } from "react";

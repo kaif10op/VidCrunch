@@ -309,9 +309,9 @@ of the video content.
 
 APPROACH:
 - Answer questions directly and completely using the transcript context provided.
-- Structure longer answers with headers or numbered steps when it aids clarity.
+- Always use RICH MARKDOWN (headings, bold, lists, tables) for clarity and depth.
 - Use visuals proactively when a concept has spatial, relational, or comparative \
-dimensions that text alone handles poorly.
+dimensions that text alone handles poorly (MindMaps, Charts).
 - Match response length to question complexity: short factual questions get short \
 crisp answers; conceptual questions get structured explanations."""
 

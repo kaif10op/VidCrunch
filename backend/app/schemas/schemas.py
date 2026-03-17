@@ -105,6 +105,49 @@ class VideoUploadResponse(BaseModel):
 
 
 # ──────────────────────────────────────────────
+# DOCUMENTS
+# ──────────────────────────────────────────────
+
+class DocumentResponse(BaseModel):
+    id: UUID
+    title: str
+    file_type: str
+    file_size_bytes: Optional[int] = None
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentUploadResponse(BaseModel):
+    id: UUID
+    title: str
+    status: str
+    message: str
+
+
+# ──────────────────────────────────────────────
+# NOTES
+# ──────────────────────────────────────────────
+
+class NoteCreateRequest(BaseModel):
+    title: str = Field(default="Untitled Note", max_length=255)
+    content: str = Field(min_length=1)
+    space_id: Optional[UUID] = None
+
+
+class NoteResponse(BaseModel):
+    id: UUID
+    title: str
+    content: str
+    space_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ──────────────────────────────────────────────
 # ANALYSIS
 # ──────────────────────────────────────────────
 
@@ -158,6 +201,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     context_snippet: Optional[str] = None
     tool_id: Optional[str] = None
+    space_id: Optional[UUID] = None  # Link chat to a specific space
 
 
 class ChatMessageResponse(BaseModel):
@@ -194,6 +238,8 @@ class SpaceResponse(BaseModel):
     description: Optional[str] = None
     is_public: bool
     video_count: int = 0
+    document_count: int = 0
+    note_count: int = 0
     video_ids: Optional[list[str]] = None
     created_at: datetime
 

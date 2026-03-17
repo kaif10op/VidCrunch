@@ -243,7 +243,12 @@ async def generate_tool(
         # If the requested tool wasn't in the targeted synthesis
         raise HTTPException(status_code=500, detail=f"Failed to generate {tool_type}. AI returned: {list(ai_result.keys())}")
 
-    return AnalysisResponse.model_validate(analysis)
+    resp = AnalysisResponse.model_validate(analysis)
+    if video:
+        resp.video_title = video.title
+        resp.video_thumbnail = video.thumbnail_url
+        resp.video_platform_id = video.platform_id
+    return resp
 
 
 @router.delete("/", response_model=MessageResponse)

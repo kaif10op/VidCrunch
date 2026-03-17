@@ -1,5 +1,5 @@
 import { Coins } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.tsx";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useUIContext } from "@/contexts/UIContext";
 import { useAuthContext } from "@/contexts/AuthContext";
 

@@ -253,7 +253,10 @@ class Space(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="spaces")
-    space_videos: Mapped[list["SpaceVideo"]] = relationship(back_populates="space", lazy="selectin")
+    space_videos: Mapped[list["SpaceVideo"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
+    space_documents: Mapped[list["SpaceDocument"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
+    space_notes: Mapped[list["Note"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
 
 
 class SpaceVideo(Base):
@@ -281,6 +284,103 @@ class SpaceVideo(Base):
 
 
 # ──────────────────────────────────────────────
+# DOCUMENTS
+# ──────────────────────────────────────────────
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=new_uuid
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(1024), nullable=False)  # S3 or local path
+    file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # pdf, docx, txt
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")  # pending, processing, ready, failed
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # Relationships
+    chunks: Mapped[list["DocumentChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan", lazy="selectin")
+    space_documents: Mapped[list["SpaceDocument"]] = relationship(back_populates="document", cascade="all, delete-orphan", lazy="selectin")
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=new_uuid
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding = mapped_column(Vector(settings.EMBEDDING_DIMENSION), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    # Relationships
+    document: Mapped["Document"] = relationship(back_populates="chunks")
+
+    __table_args__ = (
+        Index("ix_document_chunks_doc_idx", "document_id", "chunk_index"),
+    )
+
+
+class SpaceDocument(Base):
+    __tablename__ = "space_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=new_uuid
+    )
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    # Relationships
+    space: Mapped["Space"] = relationship(back_populates="space_documents")
+    document: Mapped["Document"] = relationship(back_populates="space_documents", lazy="selectin")
+
+    __table_args__ = (
+        UniqueConstraint("space_id", "document_id", name="uq_space_document"),
+    )
+
+
+# ──────────────────────────────────────────────
+# NOTES
+# ──────────────────────────────────────────────
+
+class Note(Base):
+    __tablename__ = "notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=new_uuid
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("spaces.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="Untitled Note")
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # Relationships
+    space: Mapped[Optional["Space"]] = relationship(back_populates="space_notes")
+
+
+# ──────────────────────────────────────────────
 # CHAT MESSAGES (RAG history)
 # ──────────────────────────────────────────────
 
@@ -293,8 +393,11 @@ class ChatMessage(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    video_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True
+    video_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("videos.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    space_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("spaces.id", ondelete="CASCADE"), nullable=True, index=True
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # user, assistant
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -303,7 +406,8 @@ class ChatMessage(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="chat_messages")
-    video: Mapped["Video"] = relationship(back_populates="chat_messages")
+    video: Mapped[Optional["Video"]] = relationship(back_populates="chat_messages")
+    space: Mapped[Optional["Space"]] = relationship(back_populates="chat_messages")
 
 
 # ──────────────────────────────────────────────

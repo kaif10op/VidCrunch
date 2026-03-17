@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, type ReactNode, type Dispatch, type SetStateAction } from "react";
 
 interface Flashcard {
   front: string;
@@ -11,18 +11,18 @@ type StudyMode = "fast" | "spaced";
 interface StudyContextValue {
   // Flashcard list and current index
   cards: Flashcard[];
-  setCards: (cards: Flashcard[]) => void;
+  setCards: Dispatch<SetStateAction<Flashcard[]>>;
   currentIndex: number;
-  setCurrentIndex: (idx: number) => void;
+  setCurrentIndex: Dispatch<SetStateAction<number>>;
   // Mastered card indices
   mastered: number[];
-  setMastered: (ids: number[]) => void;
+  setMastered: Dispatch<SetStateAction<number[]>>;
   // Study mode
   studyMode: StudyMode;
-  setStudyMode: (mode: StudyMode) => void;
+  setStudyMode: Dispatch<SetStateAction<StudyMode>>;
   // UI flags used across components
   isFlipped: boolean;
-  setIsFlipped: (val: boolean) => void;
+  setIsFlipped: Dispatch<SetStateAction<boolean>>;
   // Shortcut to reset whole study session
   resetStudy: () => void;
 }

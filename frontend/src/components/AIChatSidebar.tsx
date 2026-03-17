@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { RichMessage } from "./RichMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -27,52 +28,6 @@ interface AIChatSidebarProps {
   onClearContext?: () => void;
 }
 
-const FormattedContent = ({ content }: { content: string }) => {
-  // Simple markdown-lite formatter
-  const lines = content.split("\n");
-  
-  return (
-    <div className="space-y-2">
-      {lines.map((line, idx) => {
-        const processedLine = line.trim();
-        
-        // Handle Bullet Points
-        if (processedLine.startsWith("* ") || processedLine.startsWith("- ")) {
-          const point = processedLine.slice(2);
-          return (
-            <div key={idx} className="flex gap-2 ml-1">
-              <span className="text-gray-400 mt-1.5">•</span>
-              <span className="flex-1 text-inherit">
-                <BoldParser text={point} />
-              </span>
-            </div>
-          );
-        }
-
-        // Standard line
-        return (
-          <p key={idx} className="min-h-[1em]">
-            <BoldParser text={line} />
-          </p>
-        );
-      })}
-    </div>
-  );
-};
-
-const BoldParser = ({ text }: { text: string }) => {
-  const parts = text.split(/(\*\*.*?\*\*)/g);
-  return (
-    <>
-      {parts.map((part, i) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return <span key={i} className="font-bold text-black">{part.slice(2, -2)}</span>;
-        }
-        return <span key={i}>{part}</span>;
-      })}
-    </>
-  );
-};
 
 const AIChatSidebar = ({
   messages,
@@ -193,7 +148,7 @@ const AIChatSidebar = ({
                   : "bg-gradient-to-br from-black to-gray-800 text-white font-bold rounded-tr-none shadow-md shadow-black/10"
               )}>
                 {msg.role === "assistant" ? (
-                  <FormattedContent content={msg.content} />
+                  <RichMessage content={msg.content} role="assistant" />
                 ) : (
                   <p>{msg.content}</p>
                 )}

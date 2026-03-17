@@ -170,7 +170,7 @@ const MindMapInner = ({ mindMap, onAIAction, onTimestampClick, isGenerating }: M
                 isHighlighted,
                 isDimmed,
                 onAction: (type: string, val: string, nodeId: string) => {
-                    if (type === 'explain') onAIAction?.('mindmap', `Deeply explain the concept "${val}" and its implications.`, `Node Context: ${val} (ID: ${nodeId})`);
+                    if (type === 'explain') onAIAction?.('mind_map', `Deeply explain the concept "${val}" and its implications.`, `Node Context: ${val} (ID: ${nodeId})`);
                     if (type === 'expand') onAIAction?.('mindmap_expand', `Expand the mind map branch for "${val}". Provide new granular sub-nodes and edges.`, `Expand Node ID: ${nodeId} | Label: ${val}`);
                 },
                 onTimestamp: (t: number) => onTimestampClick?.(t)
@@ -296,7 +296,7 @@ const MindMapInner = ({ mindMap, onAIAction, onTimestampClick, isGenerating }: M
                         <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => onAIAction?.('mindmap_regenerate', '')}
+                            onClick={() => onAIAction?.('mind_map', 'Regenerate this mind map.')}
                             disabled={isGenerating}
                             className="h-10 w-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
                             title="Regenerate Mind Map"
@@ -458,7 +458,7 @@ const MindMapDetail = (props: MindMapDetailProps) => {
                 Visualize the conceptual DNA of this video. We'll build an interactive knowledge graph showing how every theory and practical step connects.
             </p>
             <Button 
-                onClick={() => props.onAIAction?.('mindmap', 'Generate a comprehensive mind map of this video workflow.')}
+                onClick={() => props.onAIAction?.('mind_map', 'Generate a comprehensive mind map of this video workflow.')}
                 disabled={props.isGenerating}
                 className="rounded-[2rem] bg-indigo-600 hover:bg-indigo-700 text-white px-12 h-16 font-black text-base shadow-2xl shadow-indigo-100 flex items-center gap-4 transition-all hover:scale-105 active:scale-95"
             >

@@ -1,5 +1,6 @@
-import React, { memo } from "react";
+import React, { memo, useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { 
   ChevronRight, 
   ChevronLeft, 
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useStudyContext } from "../contexts/StudyContext";
 
 interface Flashcard {
   front: string;
@@ -45,6 +47,7 @@ const Flashcards = ({
   onClearExplanation
 }: FlashcardsProps) => {
   const { cards, setCards, currentIndex, setCurrentIndex, mastered, setMastered, studyMode, setStudyMode, isFlipped, setIsFlipped, resetStudy } = useStudyContext();
+  const reducedMotion = useReducedMotion();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ front: "", back: "" });
   const [isFinished, setIsFinished] = useState(false);
@@ -271,35 +274,58 @@ const Flashcards = ({
              </div>
           </div>
 
-          <AnimatePresence>
-            {showShortcuts && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
-                   {[
-                     { k: "← / A / [", l: "Previous" },
-                     { k: "→ / D / ]", l: "Next" },
-                     { k: "Space / F", l: "Flip" },
-                     { k: "M", l: "Master" },
-                     { k: "H / I", l: "Hint" },
-                     { k: "E", l: "Edit" },
-                     { k: "R", l: "Reset" },
-                     { k: "G / +", l: "More" },
-                     { k: "S", l: "Study Mode" }
-                   ].map(s => (
-                     <div key={s.l} className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
-                        <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
-                     </div>
-                   ))}
+          {showShortcuts && (
+            <div className="mt-2 w-full">
+              {!reducedMotion ? (
+                <AnimatePresence>
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2">
+                      {[
+                        { k: "← / A / [", l: "Previous" },
+                        { k: "→ / D / ]", l: "Next" },
+                        { k: "Space / F", l: "Flip" },
+                        { k: "M", l: "Master" },
+                        { k: "H / I", l: "Hint" },
+                        { k: "E", l: "Edit" },
+                        { k: "R", l: "Reset" },
+                        { k: "G / +", l: "More" },
+                        { k: "S", l: "Study Mode" }
+                      ].map(s => (
+                        <div key={s.l} className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
+                          <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              ) : (
+                <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2">
+                  {[
+                    { k: "← / A / [", l: "Previous" },
+                    { k: "→ / D / ]", l: "Next" },
+                    { k: "Space / F", l: "Flip" },
+                    { k: "M", l: "Master" },
+                    { k: "H / I", l: "Hint" },
+                    { k: "E", l: "Edit" },
+                    { k: "R", l: "Reset" },
+                    { k: "G / +", l: "More" },
+                    { k: "S", l: "Study Mode" }
+                  ].map(s => (
+                    <div key={s.l} className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
+                      <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
+                    </div>
+                  ))}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </div>
+          )}
        </div>
 
       {isFinished ? (

@@ -143,6 +143,7 @@ const Index = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [generatingTools, setGeneratingTools] = useState<string[]>([]);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
 
   const fetchTransactions = async () => {
     try {
@@ -395,7 +396,7 @@ const Index = () => {
     try {
       if (activeAnalysisId) {
         // Use streaming RAG chat endpoint
-        const response = await fetch(`${API_BASE_URL}/chat/${activeAnalysisId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/chat/${activeAnalysisId}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -447,7 +448,7 @@ const Index = () => {
         }
       } else {
         // Fallback or generic chat (non-streaming for now)
-        const responseData = await apiFetch("/videos/analyze", {
+        const responseData = await apiFetch("/api/videos/analyze", {
           method: "POST",
           body: JSON.stringify({
             urls: videoIds.map(id => `https://youtube.com/watch?v=${id}`),
@@ -480,7 +481,7 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      const res = await apiFetch("/videos/analyze", {
+      const res = await apiFetch("/api/videos/analyze", {
         method: "POST",
         body: JSON.stringify({
           urls: ids.map(id => `https://youtube.com/watch?v=${id}`),
@@ -1740,6 +1741,8 @@ const Index = () => {
                               spaces={spaces}
                               onAddToSpace={handleAddToSpace}
                               currentTime={currentTime}
+                              isAutoScroll={isAutoScroll}
+                              setIsAutoScroll={setIsAutoScroll}
                             />
                           </motion.div>
                         ) : null}
@@ -1755,7 +1758,6 @@ const Index = () => {
                           hasFlashcards={!!summaryData?.flashcards}
                           hasRoadmap={!!summaryData?.roadmap}
                           hasMindMap={!!summaryData?.mind_map}
-                          isChatLoading={isChatLoading}
                           onGenerate={handleGenerateTool}
                           generatingTools={generatingTools}
                           sets={summaryData ? [
@@ -1808,7 +1810,6 @@ const Index = () => {
                             hasFlashcards={!!summaryData?.flashcards?.length}
                             hasRoadmap={!!summaryData?.roadmap}
                             hasMindMap={!!summaryData?.mind_map?.nodes?.length}
-                            isChatLoading={isChatLoading}
                             sets={[
                               ...(summaryData?.quiz?.length ? [{ id: 'quiz-set', name: `Quiz (${summaryData.quiz.length} questions)`, date: 'Generated', type: 'quiz' }] : []),
                               ...(summaryData?.flashcards?.length ? [{ id: 'flashcard-set', name: `Flashcards (${summaryData.flashcards.length} cards)`, date: 'Generated', type: 'flashcards' }] : []),

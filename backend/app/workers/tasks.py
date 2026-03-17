@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import async_session_factory
-from app.models.models import Analysis, Transcript, TranscriptChunk, Video
+from app.models.models import Analysis, Transcript, TranscriptChunk, Video, Document, DocumentChunk
 from app.services.ai_pipeline import (
     chunk_transcript,
     generate_embeddings,
@@ -72,6 +72,20 @@ async def enqueue_upload_processing(
     await pool.enqueue_job(
         "process_upload",
         video_id, file_path, user_id,
+    )
+    await pool.close()
+
+
+async def enqueue_document_processing(
+    document_id: str,
+    file_path: str,
+    file_type: str,
+):
+    """Enqueue a document processing job via ARQ Redis queue."""
+    pool = await _get_redis_pool()
+    await pool.enqueue_job(
+        "process_document",
+        document_id, file_path, file_type,
     )
     await pool.close()
 
@@ -440,6 +454,109 @@ async def process_upload(
                     await db.commit()
             except Exception:
                 pass
+async def process_document(
+    ctx: dict,
+    document_id: str,
+    file_path: str,
+    file_type: str,
+):
+    """Process an uploaded document: extract text → chunk → embed."""
+    async with async_session_factory() as db:
+        try:
+            doc_uuid = UUID(document_id)
+            document = await db.scalar(select(Document).where(Document.id == doc_uuid))
+            if not document:
+                logger.error(f"Document {document_id} not found")
+                return
+
+            document.status = "processing"
+            await db.commit()
+
+            # Extract text
+            text = await _extract_text_from_file(file_path, file_type)
+            if not text:
+                document.status = "failed"
+                document.error_message = f"Text extraction failed for {file_type}"
+                await db.commit()
+                return
+
+            # Chunk and Embed
+            chunks = chunk_transcript(text)  # reuse the same chunking logic
+            chunk_texts = [c["text"] for c in chunks]
+            embeddings = await generate_embeddings(chunk_texts)
+
+            for chunk_data, embedding in zip(chunks, embeddings):
+                chunk_record = DocumentChunk(
+                    document_id=doc_uuid,
+                    chunk_index=chunk_data["chunk_index"],
+                    text=chunk_data["text"],
+                    embedding=embedding if any(e != 0.0 for e in embedding) else None,
+                )
+                db.add(chunk_record)
+
+            document.status = "ready"
+            await db.commit()
+            logger.info(f"Document {document_id} processed successfully")
+
+        except Exception as e:
+            logger.error(f"Document processing failed: {e}", exc_info=True)
+            try:
+                document = await db.scalar(select(Document).where(Document.id == UUID(document_id)))
+                if document:
+                    document.status = "failed"
+                    document.error_message = str(e)[:1000]
+                    await db.commit()
+            except Exception:
+                pass
+
+
+async def _extract_text_from_file(file_path: str, file_type: str) -> str | None:
+    """Helper to extract text based on file type."""
+    try:
+        if file_type == "pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(file_path)
+            text = ""
+            for page in reader.pages:
+                text += (page.extract_text() or "") + "\n"
+            
+            # OCR Fallback if text is too short (likely a scanned document)
+            if len(text.strip()) < 50:
+                logger.info(f"PDF text extraction minimal ({len(text.strip())} chars). Falling back to OCR...")
+                try:
+                    from pdf2image import convert_from_path
+                    import pytesseract
+                    from PIL import Image
+                    import os
+                    
+                    # Convert PDF to images
+                    images = convert_from_path(file_path)
+                    ocr_text = ""
+                    for i, image in enumerate(images):
+                        ocr_text += f"--- PAGE {i+1} ---\n"
+                        ocr_text += pytesseract.image_to_string(image) + "\n"
+                    
+                    if len(ocr_text.strip()) > len(text.strip()):
+                        return ocr_text.strip()
+                except Exception as ocr_err:
+                    logger.error(f"OCR fallback failed for {file_path}: {ocr_err}")
+                    # If OCR fails, return whatever we got from pypdf
+            
+            return text.strip()
+            
+        elif file_type == "docx":
+            import docx
+            doc = docx.Document(file_path)
+            return "\n".join([para.text for para in doc.paragraphs]).strip()
+            
+        elif file_type == "txt":
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+                
+        return None
+    except Exception as e:
+        logger.error(f"Extraction error for {file_path}: {e}")
+        return None
 
 
 # ──────────────────────────────────────────────
@@ -462,7 +579,7 @@ async def _get_video(db, video_id: UUID) -> Video | None:
 
 class WorkerSettings:
     """ARQ worker settings — run with: arq app.workers.tasks.WorkerSettings"""
-    functions = [process_video_analysis, process_upload]
+    functions = [process_video_analysis, process_upload, process_document]
     
     # Use the Redis URL from settings
     from arq.connections import RedisSettings

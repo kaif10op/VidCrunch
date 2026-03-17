@@ -1,8 +1,9 @@
-import React, { memo } from "react";
+import React, { memo, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, ChevronRight, Brain, RotateCcw, Trophy, ArrowRight, Lightbulb, Baby, Footprints, HelpCircle, Send, Mic, Keyboard, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useQuizContext } from "@/contexts/QuizContext";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface QuizQuestion {
@@ -30,6 +31,7 @@ const QuizTab = ({
   onClearExplanation
 }: QuizTabProps) => {
   const { quiz, setQuiz, current, setCurrent, selected, setSelected, score, setScore, finished, setFinished, answers, setAnswers, resetQuiz } = useQuizContext();
+  const reducedMotion = useReducedMotion();
   const [chatInput, setChatInput] = useState("");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [lastCount, setLastCount] = useState(initialQuiz.length);
@@ -226,16 +228,18 @@ const QuizTab = ({
         </div>
       </div>
 
-      <AnimatePresence>
-        {showShortcuts && (
-            <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-            >
-            <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
-                {[
+      {showShortcuts && (
+        <div className="mt-2 w-full">
+          {!reducedMotion ? (
+            <AnimatePresence>
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
+                  {[
                     { k: "1-4", l: "Select Option" },
                     { k: "Enter", l: "Next Question" },
                     { k: "H", l: "Hint" },
@@ -244,16 +248,36 @@ const QuizTab = ({
                     { k: "R", l: "Reset Quiz" },
                     { k: "G / +", l: "Add Questions" },
                     { k: "K", l: "Shortcuts" }
-                ].map(s => (
+                  ].map(s => (
                     <div key={s.l} className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
-                    <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
+                      <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
                     </div>
-                ))}
+                  ))}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
+              {[
+                { k: "1-4", l: "Select Option" },
+                { k: "Enter", l: "Next Question" },
+                { k: "H", l: "Hint" },
+                { k: "E", l: "Explain" },
+                { k: "W", l: "Walkthrough" },
+                { k: "R", l: "Reset Quiz" },
+                { k: "G / +", l: "Add Questions" },
+                { k: "K", l: "Shortcuts" }
+              ].map(s => (
+                <div key={s.l} className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
+                  <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
+                </div>
+              ))}
             </div>
-            </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-4">
         <div className="flex-1 h-1.5 bg-gray-50 rounded-full overflow-hidden border">

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode, Dispatch, SetStateAction } from "react";
 
 type QuizQuestion = {
   question: string;
@@ -11,17 +11,17 @@ type QuizMode = "idle" | "inProgress" | "finished";
 
 interface QuizContextValue {
   quiz: QuizQuestion[];
-  setQuiz: (quiz: QuizQuestion[]) => void;
+  setQuiz: Dispatch<SetStateAction<QuizQuestion[]>>;
   current: number;
-  setCurrent: (idx: number) => void;
+  setCurrent: Dispatch<SetStateAction<number>>;
   selected: number | null;
-  setSelected: (idx: number | null) => void;
+  setSelected: Dispatch<SetStateAction<number | null>>;
   score: number;
-  setScore: (s: number) => void;
+  setScore: Dispatch<SetStateAction<number>>;
   finished: boolean;
-  setFinished: (f: boolean) => void;
+  setFinished: Dispatch<SetStateAction<boolean>>;
   answers: (number | null)[];
-  setAnswers: (a: (number | null)[]) => void;
+  setAnswers: Dispatch<SetStateAction<(number | null)[]>>;
   resetQuiz: () => void;
 }
 

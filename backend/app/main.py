@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.api import auth, videos, analysis, chat, spaces, credits, payments, export, search
+from app.api import auth, videos, analysis, chat, spaces, credits, payments, export, search, documents
 from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 
 # Configure logging
@@ -68,6 +68,7 @@ app.include_router(credits.router, prefix="/api/credits", tags=["Credits"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
 app.include_router(export.router, prefix="/api/export", tags=["Export"])
 app.include_router(search.router, prefix="/api/search", tags=["Search"])
+app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 
 
 @app.get("/api/health")

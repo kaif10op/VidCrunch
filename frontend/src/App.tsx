@@ -5,25 +5,25 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { lazy, useState, useEffect, Suspense } from "react";
-import { KeyboardShortcutHelp } from "./components/KeyboardShortcutHelp";
-import { StudyProvider } from "./contexts/StudyContext";
-import { QuizProvider } from "./contexts/QuizContext";
-import { AppLayout } from "./layouts/AppLayout.tsx";
-import { AuthProvider } from "./contexts/AuthContext.tsx";
-import { SpacesProvider } from "./contexts/SpacesContext.tsx";
-import { AnalysisProvider } from "./contexts/AnalysisContext.tsx";
+import { KeyboardShortcutHelp } from "@/components/KeyboardShortcutHelp";
+import { StudyProvider } from "@/contexts/StudyContext";
+import { QuizProvider } from "@/contexts/QuizContext";
+import { AppLayout } from "@/layouts/AppLayout";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { SpacesProvider } from "@/contexts/SpacesContext";
+import { AnalysisProvider } from "@/contexts/AnalysisContext";
 
-const UIProvider = lazy(() => import("@/contexts/UIContext.tsx").then(m => ({ default: m.UIProvider })));
+const UIProvider = lazy(() => import("@/contexts/UIContext").then(m => ({ default: m.UIProvider })));
 
-const LandingPage = lazy(() => import("./pages/LandingPage"));
-const DashboardPage = lazy(() => import("./pages/DashboardPage"));
-const AnalysisPage = lazy(() => import("./pages/AnalysisPage"));
-const HistoryPage = lazy(() => import("./pages/HistoryPage"));
-const LibraryPage = lazy(() => import("./pages/LibraryPage"));
-const SpacePage = lazy(() => import("./pages/SpacePage"));
-const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
-import NotFound from "./pages/NotFound";
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
+const AnalysisPage = lazy(() => import("@/pages/AnalysisPage"));
+const HistoryPage = lazy(() => import("@/pages/HistoryPage"));
+const LibraryPage = lazy(() => import("@/pages/LibraryPage"));
+const SpacePage = lazy(() => import("@/pages/SpacePage"));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 

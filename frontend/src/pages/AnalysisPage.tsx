@@ -12,6 +12,7 @@ import LoadingSkeleton from "@/components/LoadingSkeleton";
 import LearnTools from "@/components/LearnTools";
 import { Button } from "@/components/ui/button";
 import MindMapDetail from "@/components/MindMapDetail";
+import AIChatSidebar from "@/components/AIChatSidebar";
 import { TOOL_IDS, UTILITY_TOOLS } from "@/lib/toolConstants";
 
 export default function AnalysisPage() {
@@ -115,13 +116,13 @@ export default function AnalysisPage() {
 
   const sets = useMemo(() => [
     { id: TOOL_IDS.SUMMARY, name: 'Overview & Insights', date: 'Generated', type: 'summary', isGenerating: false },
-    ...(summaryData?.quiz?.length ? [{ id: TOOL_IDS.QUIZ, name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
-    ...(summaryData?.flashcards?.length ? [{ id: TOOL_IDS.FLASHCARDS, name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
-    ...(summaryData?.roadmap ? [{ id: TOOL_IDS.ROADMAP, name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
+    ...(summaryData?.quiz?.length ? [{ id: TOOL_IDS.QUIZ, name: 'Knowledge Quiz', date: 'Generated', type: 'quiz', isGenerating: false }] : []),
+    ...(summaryData?.flashcards?.length ? [{ id: TOOL_IDS.FLASHCARDS, name: 'Brain Cards', date: 'Generated', type: 'flashcards', isGenerating: false }] : []),
+    ...(summaryData?.roadmap ? [{ id: TOOL_IDS.ROADMAP, name: 'Learning Path', date: 'Generated', type: 'roadmap', isGenerating: false }] : []),
     ...(summaryData?.mind_map ? [{ id: TOOL_IDS.MIND_MAP, name: 'Mind Map', date: 'Generated', type: 'mindmap', isGenerating: false }] : []),
     ...(summaryData?.podcast ? [{ id: TOOL_IDS.PODCAST, name: 'Audio Podcast', date: 'Generated', type: 'podcast', isGenerating: false }] : []),
-    ...(summaryData?.glossary?.length ? [{ id: TOOL_IDS.GLOSSARY, name: 'Video Glossary', date: 'Generated', type: 'glossary' }] : []),
-    ...(summaryData?.resources?.length ? [{ id: TOOL_IDS.RESOURCES, name: 'Resource Hub', date: 'Generated', type: 'resources' }] : []),
+    ...(summaryData?.glossary?.length ? [{ id: TOOL_IDS.GLOSSARY, name: 'Video Glossary', date: 'Generated', type: 'glossary', isGenerating: false }] : []),
+    ...(summaryData?.resources?.length ? [{ id: TOOL_IDS.RESOURCES, name: 'Resource Hub', date: 'Generated', type: 'resources', isGenerating: false }] : []),
     ...(generatingTools.map(toolId => ({
       id: `gen-${toolId}`,
       name: `Generating ${toolId.charAt(0).toUpperCase() + toolId.slice(1)}...`,
@@ -323,7 +324,14 @@ export default function AnalysisPage() {
                           >
                             <MindMapDetail 
                               mindMap={summaryData.mind_map} 
-                              onAIAction={handleToolClick}
+                              onAIAction={(toolId, value, context) => {
+                                const isGenerationRequest = value?.toLowerCase().includes('generate') || value?.toLowerCase().includes('regenerate');
+                                if ((toolId === TOOL_IDS.MIND_MAP || toolId === 'mind_map' || toolId === 'mindmap') && isGenerationRequest) {
+                                  handleGenerateTool(TOOL_IDS.MIND_MAP);
+                                  return;
+                                }
+                                handleToolClick(toolId, value, context);
+                              }}
                               onTimestampClick={handleTimestampClick}
                               isGenerating={generatingTools.includes(TOOL_IDS.MIND_MAP)}
                             />
@@ -343,8 +351,12 @@ export default function AnalysisPage() {
                             onAddToSpace={handleAddToSpace}
                             currentTime={currentTime}
                             onToolClick={(toolId, value, context) => {
+                              if (toolId === TOOL_IDS.MIND_MAP && !value) {
+                                handleOpenTab(TOOL_IDS.MIND_MAP);
+                                return;
+                              }
                               handleToolClick(toolId, value, context);
-                              if ([TOOL_IDS.CHAPTERS, TOOL_IDS.TRANSCRIPT, TOOL_IDS.SUMMARY, TOOL_IDS.MIND_MAP].includes(toolId)) {
+                              if ([(TOOL_IDS.CHAPTERS as string), TOOL_IDS.TRANSCRIPT, TOOL_IDS.SUMMARY].includes(toolId)) {
                                 handleOpenTab(toolId);
                               }
                             }}
@@ -393,6 +405,11 @@ export default function AnalysisPage() {
                     }
 
                     // If already generated/available, open the tab
+                    if (toolId === TOOL_IDS.MIND_MAP) {
+                      handleOpenTab(TOOL_IDS.MIND_MAP);
+                      return;
+                    }
+
                     handleOpenTab(toolId);
                   }} 
                   activeSidebarTab={activeSidebarTab}
@@ -484,6 +501,12 @@ export default function AnalysisPage() {
                         return;
                       }
 
+                      if (id === TOOL_IDS.MIND_MAP) {
+                        handleOpenTab(TOOL_IDS.MIND_MAP);
+                        setIsMobileLearnOpen(false);
+                        return;
+                      }
+
                       handleOpenTab(id);
                       setIsMobileLearnOpen(false); 
                     }}
@@ -525,7 +548,15 @@ export default function AnalysisPage() {
       )}
 
       {/* AI Chat Sidebar */}
-
+      <AIChatSidebar 
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        messages={chatMessages}
+        onSendMessage={handleSendMessage}
+        isLoading={isChatLoading}
+        contextSnippet={contextSnippet}
+        onClearContext={() => setContextSnippet(null)}
+      />
     </motion.div>
   );
 }

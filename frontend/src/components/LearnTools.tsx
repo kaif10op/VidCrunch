@@ -86,6 +86,7 @@ interface LearnToolsProps {
   onClearExplanation?: () => void;
   onMaximize?: () => void;
   isMaximized?: boolean;
+  isMobile?: boolean;
 }
 
 const LoadingState = () => (
