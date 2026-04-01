@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   getHistory,
   getSpaces,
@@ -44,6 +44,15 @@ export function useSpaces() {
     return items;
   }, []);
 
+  // Sync data when token is available or changes
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      refreshHistory();
+      refreshSpaces();
+    }
+  }, [refreshHistory, refreshSpaces]);
+
   const handleCreateNewSpace = useCallback(async (name: string) => {
     const space = await createSpace(name);
     if (space) {
@@ -71,17 +80,17 @@ export function useSpaces() {
   const handleAddToSpace = useCallback(
     async (spaceId: string, videoId: string) => {
       await addVideoToSpace(spaceId, videoId);
-      setSpaces(await fetchSpaces());
+      await refreshSpaces();
       toast.success("Added to space");
     },
-    []
+    [refreshSpaces]
   );
 
   const handleRemoveVideoFromSpace = useCallback(async (spaceId: string, videoId: string) => {
     await removeVideoFromSpace(spaceId, videoId);
-    setSpaces(await fetchSpaces());
+    await refreshSpaces();
     toast.success("Removed from space");
-  }, []);
+  }, [refreshSpaces]);
 
   const handleDeleteHistoryItem = useCallback(async (id: string) => {
     await deleteHistory(id);

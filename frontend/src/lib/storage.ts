@@ -197,7 +197,7 @@ export const deleteHistory = async (id: string, backend_id?: string) => {
 
   const token = getAuthToken();
   if (token && backend_id) {
-    apiFetch(`/analysis/${backend_id}`, { method: "DELETE" }).catch(console.error);
+    apiFetch(`/api/analysis/${backend_id}`, { method: "DELETE" }).catch(console.error);
   }
 };
 
@@ -278,7 +278,7 @@ export const addVideoToSpace = async (spaceId: string, videoId: string) => {
   
   if (token) {
     try {
-      await apiFetch(`/spaces/${spaceId}/videos`, {
+      await apiFetch(`/api/spaces/${spaceId}/videos`, {
         method: "POST",
         body: JSON.stringify({ video_id: videoId })
       });
@@ -301,7 +301,7 @@ export const removeVideoFromSpace = async (spaceId: string, videoId: string) => 
   const token = getAuthToken();
   if (token) {
     try {
-      await apiFetch(`/spaces/${spaceId}/videos/${videoId}`, { method: "DELETE" });
+      await apiFetch(`/api/spaces/${spaceId}/videos/${videoId}`, { method: "DELETE" });
     } catch (e) {
       logger.error("Failed to remove video from space", e);
     }
@@ -321,7 +321,7 @@ export const renameSpace = async (id: string, name: string) => {
   const token = getAuthToken();
   if (token && id.match(UUID_PATTERN)) {
     try {
-      await apiFetch(`/spaces/${id}`, {
+      await apiFetch(`/api/spaces/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ name })
       });
@@ -339,7 +339,7 @@ export const deleteSpace = async (id: string) => {
   const token = getAuthToken();
   if (token && id.match(UUID_PATTERN)) {
     try {
-      await apiFetch(`/spaces/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/spaces/${id}`, { method: "DELETE" });
     } catch (e) {
       logger.error("Failed to delete space", e);
     }

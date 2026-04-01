@@ -49,7 +49,7 @@ export function AuthDialog({ onSuccess, trigger }: { onSuccess?: () => void; tri
   };
 
   const handleOAuth = (provider: string) => {
-    window.location.href = `${API_BASE_URL}/auth/${provider}/authorize`;
+    window.location.href = `${API_BASE_URL}/api/auth/${provider}/authorize`;
   };
 
   return (

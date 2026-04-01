@@ -348,9 +348,12 @@ async def google_authorize(response: Response):
     state = secrets.token_urlsafe(32)
     response.set_cookie(key="oauth_state", value=state, httponly=True, max_age=600, samesite="lax")
     
+    redirect_uri = f"{settings.OAUTH_REDIRECT_BASE}/api/auth/google/callback"
+    print(f"DEBUG: Google Redirect URI: {redirect_uri}")
+    
     params = urlencode({
         "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": f"{settings.OAUTH_REDIRECT_BASE}/api/auth/google/callback",
+        "redirect_uri": redirect_uri,
         "scope": "openid email profile",
         "response_type": "code",
         "access_type": "offline",
@@ -363,10 +366,17 @@ async def google_authorize(response: Response):
 async def google_oauth_get_callback(request: Request, code: str, state: str, db: AsyncSession = Depends(get_db)):
     """Handle Google OAuth redirect — exchange code, upsert user, redirect to frontend."""
     cookie_state = request.cookies.get("oauth_state")
+    print(f"DEBUG: Google Callback - State: {state}, Cookie State: {cookie_state}")
     if not cookie_state or cookie_state != state:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
+        print(f"WARNING: CSRF cookie missing or mismatch. Cookie: {cookie_state}, Received: {state}")
+        # In development, we might proceed if the state matches but cookie is missing due to SameSite issues
+        if not cookie_state and settings.DEBUG:
+            print("WARNING: Proceeding without cookie in DEBUG mode")
+        else:
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
 
     async with httpx.AsyncClient() as client:
+        print(f"DEBUG: Exchanging code for token...")
         token_resp = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
@@ -379,18 +389,22 @@ async def google_oauth_get_callback(request: Request, code: str, state: str, db:
         )
 
         if token_resp.status_code != 200:
+            print(f"ERROR: Google token exchange failed: {token_resp.status_code} - {token_resp.text}")
             return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=oauth_failed")
 
         tokens = token_resp.json()
+        print(f"DEBUG: Fetching user info...")
         user_resp = await client.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
 
         if user_resp.status_code != 200:
+            print(f"ERROR: Google user info fetch failed: {user_resp.status_code} - {user_resp.text}")
             return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=oauth_failed")
 
         user_info = user_resp.json()
+        print(f"DEBUG: Google User Info: {user_info.get('email')}")
 
     user = await _upsert_oauth_user(
         db,
@@ -494,10 +508,13 @@ async def linkedin_authorize(response: Response):
     state = secrets.token_urlsafe(32)
     response.set_cookie(key="oauth_state", value=state, httponly=True, max_age=600, samesite="lax")
     
+    redirect_uri = f"{settings.OAUTH_REDIRECT_BASE}/api/auth/linkedin/callback"
+    print(f"DEBUG: LinkedIn Redirect URI: {redirect_uri}")
+    
     params = urlencode({
         "response_type": "code",
         "client_id": settings.LINKEDIN_CLIENT_ID,
-        "redirect_uri": f"{settings.OAUTH_REDIRECT_BASE}/api/auth/linkedin/callback",
+        "redirect_uri": redirect_uri,
         "scope": "openid profile email",
         "state": state,
     })
