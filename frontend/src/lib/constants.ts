@@ -1,6 +1,6 @@
 /** Application-wide constants */
 
-export const APP_NAME = "TubeBrain" as const;
+export const APP_NAME = "VidCrunch" as const;
 export const APP_DESCRIPTION = "AI-powered YouTube video learning platform — summarize, quiz, and master any video" as const;
 
 /** API Configuration */

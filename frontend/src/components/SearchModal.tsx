@@ -136,7 +136,7 @@ export default function SearchModal() {
                    <span className="text-[9px] font-semibold text-muted-foreground uppercase">Open</span>
                 </div>
              </div>
-               <p className="text-[9px] font-semibold text-muted-foreground/30 uppercase tracking-widest">TubeBrain Search</p>
+               <p className="text-[9px] font-semibold text-muted-foreground/30 uppercase tracking-widest">VidCrunch Search</p>
           </div>
         </div>
       </DialogContent>

@@ -1,0 +1,5 @@
+[project]
+name = "vidcrunch-backend"
+version = "0.1.0"
+description = "VidCrunch Backend"
+dependencies = []

@@ -1564,7 +1564,7 @@ const Index = () => {
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Open</span>
                   </div>
                </div>
-               <p className="text-[9px] font-bold text-muted-foreground opacity-30 uppercase tracking-widest">TubeBrain Search</p>
+               <p className="text-[9px] font-bold text-muted-foreground opacity-30 uppercase tracking-widest">VidCrunch Search</p>
             </div>
           </div>
         </DialogContent>

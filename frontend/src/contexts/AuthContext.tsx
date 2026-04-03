@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             key: order.key_id,
             amount: order.amount,
             currency: order.currency,
-            name: "TubeBrain AI",
+            name: "VidCrunch AI",
             description: `Upgrade to ${plan.toUpperCase()}`,
             order_id: order.order_id,
             handler: async (response: any) => {

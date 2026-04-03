@@ -15,6 +15,7 @@ import { Label } from "./ui/label";
 import { toast } from "sonner";
 import { authApi, setAuthToken } from "@/lib/api";
 import { Github, Mail, Chrome as Google } from "lucide-react";
+import { Logo } from "./Logo";
 
 import { API_BASE_URL } from "@/lib/constants";
 
@@ -65,13 +66,13 @@ export function AuthDialog({ onSuccess, trigger }: { onSuccess?: () => void; tri
       <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border border-border/70 bg-card backdrop-blur-xl rounded-[28px] shadow-xl">
         <div className="relative p-8 space-y-8">
           <DialogHeader className="space-y-3">
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-sm">
-                  <span className="text-primary-foreground font-black text-xl">TB</span>
+              <div className="flex justify-center mb-4">
+                <div className="scale-125">
+                  <Logo iconOnly />
                 </div>
               </div>
               <DialogTitle className="text-2xl font-black text-center text-foreground tracking-tight">
-                {mode === "login" ? "Welcome back to TubeBrain" : "Join the future of learning"}
+                {mode === "login" ? "Welcome back to VidCrunch" : "Join the future of learning"}
               </DialogTitle>
               <DialogDescription className="text-center text-muted-foreground font-medium px-4">
                 {mode === "login" 
@@ -170,7 +171,7 @@ export function AuthDialog({ onSuccess, trigger }: { onSuccess?: () => void; tri
               </form>
 
               <p className="text-center text-sm font-bold text-muted-foreground">
-                {mode === "login" ? "New to TubeBrain?" : "Already joining us?"}{" "}
+                {mode === "login" ? "New to VidCrunch?" : "Already joining us?"}{" "}
                 <button 
                   onClick={() => setMode(mode === "login" ? "register" : "login")}
                   className="text-foreground hover:underline underline-offset-4"

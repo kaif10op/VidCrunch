@@ -1,6 +1,6 @@
-# 🧠 TubeBrain: The Elite YouTube Analysis Platform
+# 🧠 VidCrunch: The Elite YouTube Analysis Platform
 
-**TubeBrain** is a high-fidelity, professional-grade platform designed to transform noisy YouTube content into structured, logically-grouped narrative knowledge. It leverages an unstoppable extraction architecture and semantic AI synthesis to provide a "Premium Reader" experience for every video.
+**VidCrunch** is a high-fidelity, professional-grade platform designed to transform noisy YouTube content into structured, logically-grouped narrative knowledge. It leverages an unstoppable extraction architecture and semantic AI synthesis to provide a "Premium Reader" experience for every video.
 
 ---
 
@@ -21,7 +21,7 @@
 - **Zero "Untitled" Guarantee**: Identity is restored even under heavy YouTube restriction.
 
 ### 🗺️ AI Roadmap Synthesis (Chapters)
-- **High-Fidelity Chapters**: If a video lacks native YouTube chapters, TubeBrain synthesizes **5-12 logical chapters** covering the entire duration.
+- **High-Fidelity Chapters**: If a video lacks native YouTube chapters, VidCrunch synthesizes **5-12 logical chapters** covering the entire duration.
 - **Topic-Based Navigation**: Every dashboard provides an instant, semantic roadmap for deep learning.
 
 ### 🛡️ Unstoppable "Triple-Lane" Extraction
@@ -76,4 +76,4 @@ uvicorn app.main:app --reload
 
 ---
 
-**TubeBrain is built for those who demand professional structural clarity and elite readability from every video. 🚀**
+**VidCrunch is built for those who demand professional structural clarity and elite readability from every video. 🚀**

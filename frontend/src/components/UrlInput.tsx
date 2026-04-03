@@ -203,10 +203,8 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
   };
 
   const actions = [
-    { title: "Upload", desc: isUploading ? "Uploading..." : "File, audio, video", icon: isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />, badge: isUploading ? undefined : "Popular", badgeColor: "bg-green-100 text-green-700" },
     { title: "Link", desc: "YouTube, Website", icon: <LinkIcon className="h-5 w-5" />, active: true },
-    { title: "Paste", desc: "Copied Text", icon: <Clipboard className="h-5 w-5" /> },
-    { title: "Record", desc: isRecording ? "Stop Recording" : "Record Lecture", icon: isRecording ? <StopCircle className="h-5 w-5 text-red-500 animate-pulse" /> : <Mic className="h-5 w-5" /> }
+    { title: "Paste", desc: "Copied Text", icon: <Clipboard className="h-5 w-5" /> }
   ];
 
   const formatTime = (seconds: number) => {
@@ -218,7 +216,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
   return (
     <div className="w-full max-w-5xl mx-auto px-6">
       {/* Action Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 gap-4 mb-10 max-w-2xl mx-auto">
         {actions.map((action, i) => (
           <motion.button
             key={i}
@@ -238,7 +236,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
             onClick={() => handleActionClick(action.title)}
             aria-label={action.title}
             className={cn(
-              "flex flex-col items-center justify-center p-5 rounded-[28px] bg-card border border-border/70 shadow-sm hover:border-border hover:shadow-md transition-all group aspect-square relative overflow-hidden",
+              "flex flex-col items-center justify-center p-5 rounded-[28px] bg-card border border-border/70 shadow-sm hover:border-border hover:shadow-md transition-all group relative overflow-hidden min-h-[140px]",
               (action.title === "Record" && isRecording) && "border-red-500/50 bg-red-500/5"
             )}
           >

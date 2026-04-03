@@ -36,11 +36,6 @@ interface SidebarProps {
   onTopUp?: () => void;
   isCollapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
-  onViewChange?: (view: any) => void;
-  activeView?: string;
-  recents?: string[];
-  setIsCollapsed?: (collapsed: boolean) => void;
-  setIsFocusMode?: (focus: boolean) => void;
 }
 
 const Sidebar = ({ 
@@ -104,22 +99,21 @@ const Sidebar = ({
   return (
     <motion.aside 
       initial={false}
-      animate={{ width: isCollapsed ? 88 : 300 }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      animate={{ width: isCollapsed ? 76 : 280 }}
+      transition={{ type: "spring", damping: 28, stiffness: 220 }}
       className={cn(
-        "relative h-screen shrink-0 overflow-hidden border-r border-border/70 bg-card/95 backdrop-blur-xl", 
-        "flex flex-col",
+        "relative h-full shrink-0 overflow-hidden flex flex-col bg-background/30 backdrop-blur-3xl", 
         className
       )}
     >
-      {/* Brand Row */}
+      {/* Brand Header */}
       <div className={cn(
-        "relative z-10 flex h-20 shrink-0 items-center border-b border-border/60",
-        isCollapsed ? "px-3" : "px-5"
+        "w-full h-16 shrink-0 flex items-center mb-2 mt-2",
+        isCollapsed ? "px-3 justify-center" : "px-5"
       )}>
         <div className={cn("flex items-center", isCollapsed ? "w-full justify-center" : "flex-1 gap-3")}>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background shadow-sm">
-            <Zap className="h-5 w-5 fill-foreground text-foreground" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-primary to-[hsl(234,89%,64%)] shadow-lg shadow-primary/30">
+            <Zap className="h-5 w-5 fill-white text-white" />
           </div>
 
           <AnimatePresence>
@@ -128,57 +122,73 @@ const Sidebar = ({
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
-                className="flex min-w-0 flex-col leading-tight"
+                className="flex min-w-0 flex-col"
               >
-                <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">TubeBrain</span>
-                <span className="truncate text-sm font-semibold tracking-tight text-foreground">Workspace</span>
+                <span className="text-base font-bold tracking-tight text-foreground">VidCrunch</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Workspace</span>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
         
-        <button 
-          onClick={() => onCollapse?.(!isCollapsed)}
-          className={cn(
-            "group flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all hover:bg-secondary",
-            isCollapsed && "absolute right-2"
-          )}
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-           {isCollapsed ? (
-             <PanelLeftOpen className="h-5 w-5 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
-           ) : (
-             <PanelLeftClose className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-           )}
-        </button>
+        {!isCollapsed && (
+          <button 
+            onClick={() => onCollapse?.(!isCollapsed)}
+            className="group flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] transition-all hover:bg-white/[0.08]"
+            title="Collapse Sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+          </button>
+        )}
       </div>
 
-      {/* Nav Section */}
-      <nav className="relative z-10 mt-3 space-y-1.5 px-4" aria-label="Main navigation">
+      {isCollapsed && (
+        <div className="flex justify-center mt-1">
+          <button 
+            onClick={() => onCollapse?.(false)}
+            className="group flex h-8 w-8 items-center justify-center rounded-[10px] transition-all hover:bg-white/[0.08]"
+            title="Expand Sidebar"
+          >
+            <PanelLeftOpen className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+          </button>
+        </div>
+      )}
+
+      {/* Main Nav */}
+      <nav className="flex-none mt-2 space-y-1.5 px-4" aria-label="Main navigation">
         {navItems.map((item) => (
           <Tooltip key={item.name} delayDuration={0}>
             <TooltipTrigger asChild>
               <Link 
                 to={item.path}
                 className={cn(
-                  "group relative flex items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition-all duration-200",
+                  "group relative flex items-center gap-3.5 overflow-hidden rounded-[12px] px-3.5 py-2.5 text-left transition-all duration-200",
                   currentPath === item.path 
-                    ? "border-border/70 bg-background text-foreground shadow-sm" 
-                    : "border-transparent text-muted-foreground/80 hover:bg-secondary/60 hover:text-foreground",
-                  isCollapsed && "mx-auto h-12 w-12 justify-center px-0"
+                    ? "bg-primary/10 text-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] border border-primary/10" 
+                    : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground active:scale-[0.98] border border-transparent",
+                  isCollapsed && "mx-auto h-[46px] w-[46px] justify-center px-0 rounded-[14px]"
                 )}
               >
+                {currentPath === item.path && (
+                  <motion.div
+                    layoutId="nav-active"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary"
+                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                  />
+                )}
                 <item.icon className={cn(
-                  "relative z-10 h-5 w-5 shrink-0 transition-all duration-300",
-                  currentPath === item.path ? "scale-105 text-foreground" : "text-muted-foreground/60 group-hover:text-foreground"
+                  "relative z-10 h-5 w-5 shrink-0 transition-transform duration-300",
+                  currentPath === item.path 
+                    ? "text-primary" 
+                    : "text-muted-foreground group-hover:text-foreground group-hover:scale-110"
                 )} />
                 <AnimatePresence>
                    {!isCollapsed && (
                      <motion.span 
-                       initial={{ opacity: 0, x: -5 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       exit={{ opacity: 0, x: -5 }}
-                       className="relative z-10 text-[13px] font-semibold tracking-tight"
+                       initial={{ opacity: 0, filter: "blur(4px)" }}
+                       animate={{ opacity: 1, filter: "blur(0px)" }}
+                       exit={{ opacity: 0, filter: "blur(4px)" }}
+                       className="relative z-10 text-[13px] font-bold"
                      >
                        {item.name}
                      </motion.span>
@@ -187,7 +197,7 @@ const Sidebar = ({
               </Link>
             </TooltipTrigger>
             {isCollapsed && (
-              <TooltipContent side="right" className="font-semibold text-[10px] uppercase tracking-widest bg-foreground text-background border-none px-3 py-2 rounded-lg">
+              <TooltipContent side="right" sideOffset={16} className="text-xs font-bold bg-card border border-white/[0.08] px-3 py-2 rounded-xl shadow-xl">
                 {item.name}
               </TooltipContent>
             )}
@@ -195,97 +205,97 @@ const Sidebar = ({
         ))}
       </nav>
 
-      <div className="relative z-10 my-4 w-full shrink-0 px-6">
-        <div className="h-px bg-border/70 w-full" />
-      </div>
-
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto scrollbar-none px-4 pb-4 relative z-10">
-        {/* Spaces */}
+      {/* Spaces List */}
+      <div className="flex-1 overflow-y-auto scrollbar-none px-4 pt-8 pb-4">
         {user && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {!isCollapsed && (
-              <div className="mb-2 flex items-center justify-between px-3 animate-in fade-in slide-in-from-left-2 duration-500">
-                 <h3 className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Spaces</h3>
+              <div className="flex items-center justify-between px-2 mb-1">
+                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Spaces</h3>
                  <button 
                    onClick={() => setIsCreatingSpace(true)}
-                   className="p-1.5 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground transition-all"
+                   className="p-1 hover:bg-white/[0.08] rounded-[8px] text-muted-foreground hover:text-foreground transition-all"
                  >
                    <Plus className="h-4 w-4" />
                  </button>
               </div>
             )}
             
-            <div className="space-y-1.5">
-              {isCreatingSpace && !isCollapsed && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3 flex flex-col gap-3 rounded-2xl border border-border/70 bg-background px-3 py-3"
-                >
-                  <input
-                    autoFocus
-                    value={newSpaceName}
-                    onChange={(e) => setNewSpaceName(e.target.value)}
-                    onKeyUp={(e) => e.key === "Enter" && handleCreateSpace()}
-                    placeholder="Space Name"
-                    className="bg-background border border-border/70 text-xs p-3 rounded-xl focus:outline-none focus:ring-4 focus:ring-primary/10 text-foreground font-medium placeholder:text-muted-foreground/35"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button onClick={handleCreateSpace} size="sm" className="h-9 rounded-full text-[10px] flex-1 font-semibold uppercase tracking-[0.22em] bg-foreground text-background hover:bg-foreground/90">Create</Button>
-                    <button onClick={() => setIsCreatingSpace(false)} className="p-2 hover:bg-secondary rounded-xl transition-all text-muted-foreground"><X className="h-4 w-4" /></button>
-                  </div>
-                </motion.div>
-              )}
+            <div className="space-y-1">
+              <AnimatePresence>
+                {isCreatingSpace && !isCollapsed && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10 }}
+                    className="mb-3 flex flex-col gap-2 rounded-[14px] border border-white/[0.08] bg-black/40 px-3 py-3 overflow-hidden shadow-xl"
+                  >
+                    <input
+                      autoFocus
+                      value={newSpaceName}
+                      onChange={(e) => setNewSpaceName(e.target.value)}
+                      onKeyUp={(e) => e.key === "Enter" && handleCreateSpace()}
+                      placeholder="Space name..."
+                      className="bg-transparent border-b border-white/[0.1] text-xs pb-2 focus:outline-none focus:border-primary text-foreground font-bold placeholder:text-muted-foreground/40 transition-colors"
+                    />
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button onClick={handleCreateSpace} size="sm" className="h-7 rounded-[8px] text-[10px] flex-1 font-bold bg-primary text-primary-foreground hover:bg-primary/90">Add Space</Button>
+                      <button onClick={() => setIsCreatingSpace(false)} className="p-1.5 hover:bg-white/[0.08] rounded-[8px] transition-all text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
               {spaces.map((space) => (
                 <div key={space.id} className="group relative">
                   {editingSpaceId === space.id ? (
-                    <div className="px-4 py-2 flex items-center gap-2">
+                    <div className="px-3 py-1.5 flex items-center gap-2">
                       <input
                         autoFocus
                         value={editingName}
                         onChange={(e) => setEditingName(e.target.value)}
                         onKeyUp={(e) => e.key === "Enter" && handleRename()}
                         onBlur={handleRename}
-                        className="bg-background/40 border border-white/10 text-xs p-2.5 rounded-xl focus:outline-none focus:ring-4 focus:ring-primary/10 w-full text-foreground font-bold"
+                        className="bg-black/40 border border-white/[0.08] text-xs p-2.5 rounded-[10px] focus:outline-none focus:ring-1 focus:ring-primary w-full text-foreground font-bold"
                       />
                     </div>
                   ) : (
                     <Link 
                       to={`/space/${space.id}`}
                       className={cn(
-                        "group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left text-[13px] transition-all duration-200",
+                        "group flex w-full items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition-all duration-200 border border-transparent",
                         currentPath === `/space/${space.id}` 
-                          ? "border-border/70 bg-background text-foreground shadow-sm" 
-                          : "border-transparent text-muted-foreground/75 hover:bg-secondary/60 hover:text-foreground",
-                        isCollapsed && "mx-auto h-12 w-12 justify-center px-0"
+                          ? "bg-white/[0.03] text-foreground border-white/[0.05]" 
+                          : "text-muted-foreground/70 hover:bg-white/[0.03] hover:text-foreground",
+                        isCollapsed && "mx-auto h-[46px] w-[46px] justify-center px-0 rounded-[14px]"
                       )}
                       title={isCollapsed ? space.name : undefined}
                     >
                       <div className={cn(
-                        "w-2 h-2 rounded-full transition-all group-hover:scale-125 shrink-0",
-                        currentPath === `/space/${space.id}` ? "bg-foreground" : "bg-border group-hover:bg-foreground/50"
+                        "w-2 h-2 rounded-full transition-all shrink-0",
+                        currentPath === `/space/${space.id}` 
+                          ? "bg-primary shadow-[0_0_8px_rgba(139,92,246,0.8)]" 
+                          : "border border-muted-foreground/30 group-hover:border-primary/50 group-hover:bg-primary/20 bg-transparent"
                       )} />
                       <AnimatePresence>
                          {!isCollapsed && (
                            <motion.div 
-                             initial={{ opacity: 0, x: -5 }}
-                             animate={{ opacity: 1, x: 0 }}
-                             exit={{ opacity: 0, x: -5 }}
+                             initial={{ opacity: 0 }}
+                             animate={{ opacity: 1 }}
+                             exit={{ opacity: 0 }}
                              className="flex-1 flex items-center justify-between min-w-0"
                            >
-                             <span className="truncate pr-2 font-medium">{space.name}</span>
-                             <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-all">
+                             <span className="truncate pr-2 font-bold text-[13px]">{space.name}</span>
+                             <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
                                <button 
                                  onClick={(e) => handleStartRename(e, space)}
-                                 className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground/50 hover:text-foreground"
+                                 className="p-1.5 hover:bg-white/[0.08] rounded-[8px] text-muted-foreground/50 hover:text-foreground transition-colors"
                                >
                                  <MoreHorizontal className="h-3.5 w-3.5" />
                                </button>
                                <button 
                                  onClick={(e) => handleDeleteSpace(e, space.id)}
-                                 className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground/50 hover:text-destructive"
+                                 className="p-1.5 hover:bg-destructive/15 rounded-[8px] text-muted-foreground/50 hover:text-destructive transition-colors"
                                >
                                  <Trash2 className="h-3.5 w-3.5" />
                                </button>
@@ -302,64 +312,60 @@ const Sidebar = ({
         )}
       </div>
 
-      {/* Bottom Section */}
-      <div className={cn("mt-auto px-4 pb-8 shrink-0 relative z-10", isCollapsed && "px-3")}>
+      {/* User Footer */}
+      <div className={cn("mt-auto p-4 shrink-0 relative z-10", isCollapsed && "p-3")}>
         {user ? (
-          <div className="space-y-4">
-             <div className="rounded-[24px] border border-border/70 bg-background p-3 shadow-sm">
+          <div className="flex flex-col gap-3">
+             <div className="flex ml-1.5 items-center justify-between">
                 {!isCollapsed && (
-                  <div className="mb-3 flex items-center justify-between px-1 animate-in fade-in slide-in-from-bottom-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/70 bg-card">
-                        <Coins className="h-3.5 w-3.5 text-foreground" />
-                      </div>
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/80">{credits ?? 0} credits</span>
-                    </div>
-                    <button 
-                      onClick={onTopUp}
-                      className="rounded-lg border border-border/70 bg-secondary px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-foreground transition-colors hover:text-muted-foreground"
-                    >
-                      Refill
-                    </button>
+                  <div className="flex items-center gap-2 px-1">
+                    <Coins className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-[11px] font-bold text-foreground/80">{credits ?? 0} credits</span>
                   </div>
                 )}
-                
-                <Link 
-                  to="/settings"
-                  className={cn(
-                    "flex items-center gap-4 transition-all group py-1",
-                    isCollapsed && "justify-center"
-                  )}
-                >
-                  <Avatar className="h-11 w-11 rounded-2xl border border-border/70 group-hover:border-border transition-all duration-300 shadow-sm shrink-0">
-                    <AvatarImage src={user.avatar_url} />
-                    <AvatarFallback className="text-[14px] font-semibold bg-foreground text-background">
-                      {user.name?.charAt(0).toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <AnimatePresence>
-                    {!isCollapsed && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: -5 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -5 }}
-                        className="flex-1 flex items-center justify-between min-w-0"
-                      >
-                           <div className="flex flex-col items-start overflow-hidden flex-1">
-                             <span className="text-[13px] font-semibold truncate w-full text-foreground/90 group-hover:text-foreground transition-colors tracking-tight">{user.name || "Your Profile"}</span>
-                             <span className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Settings</span>
-                           </div>
-                           <Settings className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-all duration-300" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Link>
+                {!isCollapsed && (
+                  <button 
+                    onClick={onTopUp}
+                    className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary transition-colors hover:bg-primary/20 hover:scale-105 active:scale-95"
+                  >
+                    Top up
+                  </button>
+                )}
              </div>
+             
+             <Link 
+               to="/settings"
+               className={cn(
+                 "flex items-center gap-3 transition-all group rounded-[16px] p-2 hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06]",
+                 isCollapsed && "justify-center p-1.5"
+               )}
+             >
+               <Avatar className="h-10 w-10 rounded-[12px] shrink-0 border border-white/[0.05] shadow-lg">
+                 <AvatarImage src={user.avatar_url} />
+                 <AvatarFallback className="text-sm font-black bg-gradient-to-br from-card to-background text-foreground rounded-[12px]">
+                   {user.name?.charAt(0).toUpperCase() || "U"}
+                 </AvatarFallback>
+               </Avatar>
+               <AnimatePresence>
+                 {!isCollapsed && (
+                   <motion.div 
+                     initial={{ opacity: 0 }}
+                     animate={{ opacity: 1 }}
+                     exit={{ opacity: 0 }}
+                     className="flex-1 flex items-center justify-between min-w-0"
+                   >
+                        <div className="flex flex-col items-start overflow-hidden flex-1">
+                          <span className="text-[13px] font-bold truncate w-full text-foreground/90 group-hover:text-foreground transition-colors">{user.name || "Your Profile"}</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-semibold">Workspace Settings</span>
+                        </div>
+                        <Settings className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-transform duration-500 group-hover:rotate-180" />
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+             </Link>
           </div>
         ) : (
-          <div className="px-2">
-            <AuthDialog onSuccess={onAuthSuccess} />
-          </div>
+          <AuthDialog onSuccess={onAuthSuccess} />
         )}
       </div>
     </motion.aside>
@@ -367,4 +373,3 @@ const Sidebar = ({
 };
 
 export default Sidebar;
-

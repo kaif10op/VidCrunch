@@ -289,7 +289,7 @@ export default function SettingsPage() {
                   <div className="group relative flex flex-col justify-between overflow-hidden rounded-[24px] border border-primary/30 bg-card p-7 shadow-sm">
                     <div className="absolute right-0 top-0 rounded-bl-3xl bg-primary px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-primary-foreground">Recommended</div>
                     <div>
-                      <h5 className="font-semibold text-2xl mb-2">TubeBrain Pro</h5>
+                      <h5 className="font-semibold text-2xl mb-2">VidCrunch Pro</h5>
                       <p className="text-sm text-muted-foreground mb-8">Unlimited mastery platform.</p>
                       <ul className="space-y-4 mb-10">
                          {['Unlimited analysis', 'All study sets & tools', 'Priority support', 'Early access to AI models'].map(f => (

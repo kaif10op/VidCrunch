@@ -1,49 +1,51 @@
-import { useLocation, Link } from "react-router-dom";
-import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Home, ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Home } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-const NotFound = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
-
+export default function NotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6">
-      <motion.div 
+    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
+      {/* Background orbs */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="animate-orb-1 absolute top-1/4 left-1/4 h-[400px] w-[400px] rounded-full bg-primary/[0.06] blur-[120px]" />
+        <div className="animate-orb-2 absolute bottom-1/4 right-1/4 h-[300px] w-[300px] rounded-full bg-[hsl(234,89%,64%)]/[0.05] blur-[100px]" />
+      </div>
+
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center max-w-md"
+        className="relative z-10 text-center px-6"
       >
-        <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-border bg-card">
-          <Search className="h-8 w-8 text-muted-foreground/50" />
-        </div>
-        <h1 className="text-6xl font-bold tracking-tighter text-foreground mb-2">404</h1>
-        <p className="text-lg font-semibold text-foreground mb-2">Page not found</p>
-        <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
-          The page you're looking for doesn't exist or has been moved. Let's get you back on track.
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.1, type: "spring", damping: 15 }}
+          className="text-[8rem] md:text-[12rem] font-black leading-none text-gradient select-none"
+        >
+          404
+        </motion.div>
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground mt-4 mb-3">
+          Page not found
+        </h1>
+        <p className="text-muted-foreground text-base max-w-md mx-auto mb-8">
+          The page you're looking for doesn't exist or has been moved.
         </p>
-        <div className="flex gap-3 justify-center">
-          <Link 
-            to="/" 
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <Home className="h-4 w-4" />
-            Back to Home
-          </Link>
-          <button 
+        <div className="flex items-center justify-center gap-3">
+          <Button
             onClick={() => window.history.back()}
-            className="inline-flex items-center gap-2 rounded-xl border border-border px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
+            variant="outline"
+            className="h-10 rounded-full border-white/[0.08] bg-white/[0.03] px-5 text-sm font-semibold gap-2 hover:bg-white/[0.06]"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Go Back
-          </button>
+            <ArrowLeft className="h-4 w-4" /> Go back
+          </Button>
+          <Link to="/">
+            <Button className="h-10 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 gap-2">
+              <Home className="h-4 w-4" /> Home
+            </Button>
+          </Link>
         </div>
       </motion.div>
     </div>
   );
-};
-
-export default NotFound;
+}

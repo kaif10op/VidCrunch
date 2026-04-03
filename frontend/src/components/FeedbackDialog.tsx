@@ -28,7 +28,7 @@ export default function FeedbackDialog() {
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-foreground">Send Feedback</DialogTitle>
           <DialogDescription className="text-sm font-medium text-muted-foreground">
-            Help us improve TubeBrain. What's on your mind?
+            Help us improve VidCrunch. What's on your mind?
           </DialogDescription>
         </DialogHeader>
         <Textarea 

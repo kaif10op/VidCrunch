@@ -1,0 +1,31 @@
+DEBUG: Google Redirect URI: http://localhost:8000/api/auth/google/callback
+INFO:     172.18.0.1:42108 - "GET /api/auth/google/authorize HTTP/1.1" 307 Temporary Redirect
+DEBUG: Google Callback - State: dyDYh7dr2ZZ5cvD0ADFBxbOBo8l0FIVYOQwOphiuQlg, Cookie State: None
+WARNING: CSRF cookie missing or mismatch. Cookie: None, Received: dyDYh7dr2ZZ5cvD0ADFBxbOBo8l0FIVYOQwOphiuQlg
+WARNING: Proceeding without cookie in DEBUG mode
+DEBUG: Exchanging code for token...
+DEBUG: Fetching user info...
+DEBUG: Google User Info: mkaif6549@gmail.com
+2026-04-03 13:18:31,661 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-03 13:18:31,662 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.name, users.avatar_url, users.auth_provider, users.auth_provider_id, users.hashed_password, users.is_active, users.is_admin, users.settings, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = $1::VARCHAR
+2026-04-03 13:18:31,663 INFO sqlalchemy.engine.Engine [cached since 288.3s ago] ('mkaif6549@gmail.com',)
+2026-04-03 13:18:31,669 INFO sqlalchemy.engine.Engine SELECT credits.user_id AS credits_user_id, credits.id AS credits_id, credits.balance AS credits_balance, credits.total_earned AS credits_total_earned, credits.total_spent AS credits_total_spent, credits.updated_at AS credits_updated_at 
+FROM credits 
+WHERE credits.user_id IN ($1::UUID)
+2026-04-03 13:18:31,669 INFO sqlalchemy.engine.Engine [cached since 297.3s ago] (UUID('8b6f1992-ef9e-4cc0-abc8-01be58e6286a'),)
+2026-04-03 13:18:31,672 INFO sqlalchemy.engine.Engine SELECT spaces.user_id AS spaces_user_id, spaces.id AS spaces_id, spaces.name AS spaces_name, spaces.description AS spaces_description, spaces.is_public AS spaces_is_public, spaces.created_at AS spaces_created_at, spaces.updated_at AS spaces_updated_at 
+FROM spaces 
+WHERE spaces.user_id IN ($1::UUID)
+2026-04-03 13:18:31,673 INFO sqlalchemy.engine.Engine [cached since 297.2s ago] (UUID('8b6f1992-ef9e-4cc0-abc8-01be58e6286a'),)
+2026-04-03 13:18:31,676 INFO sqlalchemy.engine.Engine SELECT chat_messages.user_id AS chat_messages_user_id, chat_messages.id AS chat_messages_id, chat_messages.video_id AS chat_messages_video_id, chat_messages.space_id AS chat_messages_space_id, chat_messages.role AS chat_messages_role, chat_messages.content AS chat_messages_content, chat_messages.context_chunks AS chat_messages_context_chunks, chat_messages.created_at AS chat_messages_created_at 
+FROM chat_messages 
+WHERE chat_messages.user_id IN ($1::UUID)
+2026-04-03 13:18:31,676 INFO sqlalchemy.engine.Engine [cached since 297.2s ago] (UUID('8b6f1992-ef9e-4cc0-abc8-01be58e6286a'),)
+2026-04-03 13:18:31,679 INFO sqlalchemy.engine.Engine SELECT analyses.user_id AS analyses_user_id, analyses.id AS analyses_id, analyses.video_id AS analyses_video_id, analyses.expertise_level AS analyses_expertise_level, analyses.style AS analyses_style, analyses.ai_provider AS analyses_ai_provider, analyses.ai_model AS analyses_ai_model, analyses.overview AS analyses_overview, analyses.key_points AS analyses_key_points, analyses.takeaways AS analyses_takeaways, analyses.timestamps AS analyses_timestamps, analyses.roadmap AS analyses_roadmap, analyses.quiz AS analyses_quiz, analyses.mind_map AS analyses_mind_map, analyses.flashcards AS analyses_flashcards, analyses.podcast AS analyses_podcast, analyses.learning_context AS analyses_learning_context, analyses.tags AS analyses_tags, analyses.glossary AS analyses_glossary, analyses.resources AS analyses_resources, analyses.user_notes AS analyses_user_notes, analyses.is_multi_video AS analyses_is_multi_video, analyses.related_video_ids AS analyses_related_video_ids, analyses.status AS analyses_status, analyses.status_message AS analyses_status_message, analyses.error_message AS analyses_error_message, analyses.progress_percentage AS analyses_progress_percentage, analyses.estimated_remaining_seconds AS analyses_estimated_remaining_seconds, analyses.full_analysis AS analyses_full_analysis, analyses.created_at AS analyses_created_at 
+FROM analyses 
+WHERE analyses.user_id IN ($1::UUID)
+2026-04-03 13:18:31,680 INFO sqlalchemy.engine.Engine [cached since 297.2s ago] (UUID('8b6f1992-ef9e-4cc0-abc8-01be58e6286a'),)
+2026-04-03 13:18:31,683 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     172.18.0.1:59092 - "GET /api/auth/google/callback?state=dyDYh7dr2ZZ5cvD0ADFBxbOBo8l0FIVYOQwOphiuQlg&iss=https%3A%2F%2Faccounts.google.com&code=4%2F0Aci98E-3WcEXVByaenU6DGQOK1Ju7r30mhlBZ6HpgYrE_lL2D3XsKe_jTn3l3Le5A7u2tg&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&authuser=0&prompt=none HTTP/1.1" 500 Internal Server Error

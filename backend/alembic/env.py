@@ -4,9 +4,13 @@ import asyncio
 from logging.config import fileConfig
 
 import os
+import sys
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.database import Base
 from app.models.models import *  # noqa: F401,F403 — import all models for autogenerate

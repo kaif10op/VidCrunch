@@ -41,6 +41,9 @@ async def _get_redis_pool():
     redis_settings = RedisSettings(
         host=parsed.hostname or "localhost",
         port=parsed.port or 6379,
+        username=parsed.username,
+        password=parsed.password,
+        ssl=parsed.scheme == 'rediss'
     )
     return await create_pool(redis_settings)
 
@@ -746,7 +749,13 @@ class WorkerSettings:
     import urllib.parse
     
     parsed = urllib.parse.urlparse(settings.REDIS_URL)
-    redis_settings = RedisSettings(host=parsed.hostname or 'localhost', port=parsed.port or 6379)
+    redis_settings = RedisSettings(
+        host=parsed.hostname or 'localhost', 
+        port=parsed.port or 6379,
+        username=parsed.username,
+        password=parsed.password,
+        ssl=parsed.scheme == 'rediss'
+    )
 
     @staticmethod
     async def on_startup(ctx):
