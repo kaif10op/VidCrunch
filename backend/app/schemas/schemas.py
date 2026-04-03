@@ -99,6 +99,7 @@ class VideoResponse(BaseModel):
 
 class VideoUploadResponse(BaseModel):
     id: UUID
+    analysis_id: Optional[UUID] = None
     title: str
     status: str
     message: str
@@ -178,6 +179,7 @@ class AnalysisResponse(BaseModel):
     transcript_segments: Optional[list] = None
     is_multi_video: bool = False
     status: str
+    status_message: Optional[str] = None
     progress_percentage: int = 0
     estimated_remaining_seconds: Optional[int] = None
     full_analysis: bool = False

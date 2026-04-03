@@ -149,14 +149,30 @@ async def upload_video(
     # Enqueue processing
     from app.workers.tasks import enqueue_upload_processing
 
+    # Create an initial analysis record for polling
+    analysis = Analysis(
+        video_id=video.id,
+        user_id=user.id,
+        expertise_level=user.settings.expertise if user.settings else "intermediate",
+        style="detailed",
+        ai_provider=settings.DEFAULT_AI_PROVIDER,
+        ai_model=settings.DEFAULT_AI_MODEL,
+        status="queued",
+        progress_percentage=0,
+    )
+    db.add(analysis)
+    await db.commit()
+
     await enqueue_upload_processing(
         video_id=str(video.id),
+        analysis_id=str(analysis.id),
         file_path=file_path,
         user_id=str(user.id),
     )
 
     return VideoUploadResponse(
         id=video.id,
+        analysis_id=analysis.id,
         title=video.title,
         status="processing",
         message="Upload received. Processing will begin shortly.",

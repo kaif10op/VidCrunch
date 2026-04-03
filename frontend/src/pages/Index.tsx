@@ -33,7 +33,8 @@ import {
   Wallet,
   Bell,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  AlertCircle
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
@@ -125,6 +126,7 @@ const Index = () => {
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [estimatedRemaining, setEstimatedRemaining] = useState<number | null>(null);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [isVideoMinimized, setIsVideoMinimized] = useState(false);
@@ -558,6 +560,9 @@ const Index = () => {
         if (statusData.progress_percentage !== undefined) {
           setAnalysisProgress(statusData.progress_percentage);
         }
+        if (statusData.status_message !== undefined) {
+          setStatusMessage(statusData.status_message);
+        }
         if (statusData.estimated_remaining_seconds !== undefined) {
           setEstimatedRemaining(statusData.estimated_remaining_seconds);
         }
@@ -568,10 +573,18 @@ const Index = () => {
           completed = true;
           setAnalysisProgress(100);
         } else if (statusData.status === "failed") {
-          throw new Error(statusData.error || "Analysis task failed");
+          setAnalysisStatus("failed");
+          const errorMsg = statusData.error || "Analysis task failed";
+          toast.error(errorMsg);
+          setStatusMessage(`Failed: ${errorMsg}`);
+          completed = true; // Stop polling immediately
+          throw new Error(errorMsg);
         }
-      } catch (e) {
+      } catch (e: any) {
         logger.warn("Polling attempt failed:", e);
+        if (e.message?.includes("failed")) {
+          completed = true; // Stop polling on definitive failure
+        }
       }
     }
 
@@ -955,7 +968,7 @@ const Index = () => {
   };
 
   return (
-    <div className="flex bg-white h-screen overflow-hidden text-foreground">
+    <div className="flex bg-background min-h-screen h-screen overflow-hidden text-foreground">
       {/* Sidebar - hidden on mobile unless toggled, always visible on desktop unless focus mode */}
       <AnimatePresence>
         {!isFocusMode && (
@@ -1237,14 +1250,21 @@ const Index = () => {
                       <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Platform Theme</label>
                         <div className="flex gap-3">
-                          {['Light', 'Dark', 'System'].map((t) => (
+                           {['Light', 'Dark', 'System'].map((t) => (
                             <button
                               key={t}
+                              onClick={() => {
+                                if (t === 'Dark') document.documentElement.classList.add('dark');
+                                else if (t === 'Light') document.documentElement.classList.remove('dark');
+                                // 'System' could be handled with a media query listener
+                                toast.success(`Theme set to ${t}`);
+                              }}
                               className={cn(
                                 "flex-1 px-4 py-3 rounded-2xl text-xs font-bold transition-all border-2",
-                                t === (document.documentElement.classList.contains('dark') ? 'Dark' : 'Light')
+                                (t === 'Dark' && document.documentElement.classList.contains('dark')) || 
+                                (t === 'Light' && !document.documentElement.classList.contains('dark'))
                                   ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/10" 
-                                  : "bg-background text-muted-foreground border-border opacity-50 cursor-not-allowed"
+                                  : "bg-card text-muted-foreground border-border hover:border-primary/50"
                               )}
                             >
                               {t}
@@ -1632,7 +1652,7 @@ const Index = () => {
                           </Button>
                         </motion.div>
                       )}
-
+ 
                       {/* Content States: Loading, Summary, or Empty */}
                       <AnimatePresence mode="wait">
                         {isLoading || (activeAnalysisId && !summaryData) ? (
@@ -1662,7 +1682,14 @@ const Index = () => {
                                  <div className="text-right">
                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Progress</p>
                                    <div className="flex flex-col items-end">
+                                   <div className="flex flex-col items-center">
                                      <span className="text-5xl font-black leading-none text-foreground">{analysisProgress}%</span>
+                                     {statusMessage && (
+                                       <p className="text-[10px] font-extrabold text-primary uppercase tracking-[0.2em] mt-4 animate-pulse">
+                                         {statusMessage}
+                                       </p>
+                                     )}
+                                   </div>
                                    </div>
                                  </div>
                               </div>
@@ -1686,7 +1713,47 @@ const Index = () => {
                               <LoadingSkeleton />
                             </div>
                           </motion.div>
-                        ) : summaryData ? (
+                        ) : analysisStatus === "failed" ? (
+                           <motion.div 
+                             key="error"
+                             initial={{ opacity: 0, scale: 0.95 }}
+                             animate={{ opacity: 1, scale: 1 }}
+                             exit={{ opacity: 0, scale: 1.05 }}
+                             className="py-12"
+                           >
+                             <div className="bg-destructive/5 border border-destructive/20 p-12 rounded-[40px] text-center shadow-2xl shadow-destructive/10">
+                               <div className="w-20 h-20 bg-destructive/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                                 <AlertCircle className="h-10 w-10 text-destructive" />
+                               </div>
+                               <h2 className="text-3xl font-bold mb-4 text-foreground">Analysis Failed</h2>
+                               <p className="text-muted-foreground text-sm font-medium mb-10 max-w-md mx-auto leading-relaxed">
+                                 {statusMessage?.replace("Failed: ", "") || "We encountered an unexpected error while processing this video. This might be due to a restricted video or a temporary service interruption."}
+                               </p>
+                               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                                 <Button 
+                                   variant="outline" 
+                                   onClick={() => {
+                                     setActiveView("dashboard");
+                                     setActiveAnalysisId(null);
+                                     setAnalysisStatus(null);
+                                   }}
+                                   className="rounded-2xl h-12 px-8 font-bold uppercase tracking-widest text-[10px] border-border hover:bg-secondary"
+                                 >
+                                   Back to Dashboard
+                                 </Button>
+                                 <Button 
+                                   onClick={() => {
+                                      // Re-trigger summarize for the same IDs
+                                      handleSubmit(videoIds);
+                                   }}
+                                   className="rounded-2xl h-12 px-8 font-bold uppercase tracking-widest text-[10px] bg-primary text-primary-foreground hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                                 >
+                                   Try Again
+                                 </Button>
+                               </div>
+                             </div>
+                           </motion.div>
+                         ) : summaryData ? (
                           <motion.div
                             key="summary"
                             initial={{ opacity: 0 }}
@@ -1903,49 +1970,110 @@ const Index = () => {
           ) : (
             <motion.div 
               key="dashboard"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="pb-20"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="pb-32"
             >
+              <div className="absolute inset-0 bg-dot-pattern opacity-[0.03] pointer-events-none" />
+              
               {/* Hero Section */}
-              <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
-                <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">
-                  Ready to learn, {user?.name?.split(' ')[0] || 'stranger'}?
-                </h1>
+              <div className="max-w-4xl mx-auto px-6 pt-24 pb-12 text-center">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.8 }}
+                >
+                  <span className="inline-block px-4 py-1.5 mb-6 rounded-full bg-primary/5 text-primary text-[10px] font-black uppercase tracking-[0.2em] border border-primary/10">
+                    Your Personal Learning Accelerator
+                  </span>
+                  <h1 className="text-4xl md:text-7xl font-black tracking-tight text-foreground leading-[1.05] mb-6">
+                    Unlock Knowledge <br/>
+                    <span className="text-muted-foreground/40">In Seconds.</span>
+                  </h1>
+                  <p className="text-lg text-muted-foreground/60 max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
+                    Ready to learn, {user?.name?.split(' ')[0] || 'stranger'}? Paste any video link or upload a file to begin your deep-dive.
+                  </p>
+                </motion.div>
               </div>
 
               <UrlInput 
                 onSubmit={handleSubmit} 
                 isLoading={isLoading} 
-                onUploadComplete={(id) => toast.success(`Video uploaded (ID: ${id}). Analysis will begin shortly.`)} 
+                onUploadComplete={async (videoId, analysisId) => {
+                  if (!analysisId) return;
+                  setVideoIds([videoId]);
+                  setVideoData({
+                    title: "Processing Upload...",
+                    channel: "Upload",
+                    duration: "N/A",
+                    views: "N/A",
+                    likes: "N/A",
+                    published: new Date().toISOString()
+                  });
+                  setSummaryData(null);
+                  setTranscript(null);
+                  setMetadata(null);
+                  setActiveAnalysisId(analysisId);
+                  setAnalysisStatus("pending");
+                  setActiveView("analysis");
+                  
+                  // Refresh history so it shows "processing"
+                  setHistoryItems(await fetchHistory());
+
+                  const data = await pollAnalysis(analysisId, [videoId]);
+                  if (data) {
+                    toast.success("Analysis complete!");
+                  }
+                }} 
                 analysisStyle={analysisStyle}
                 onStyleChange={setAnalysisStyle}
               />
               
-              <div className="max-w-4xl mx-auto px-6 mt-12 space-y-12">
+              <div className="max-w-5xl mx-auto px-6 mt-20 space-y-20">
                  {/* Spaces Grid */}
                  <section>
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-bold">Spaces</h3>
-                      <button className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">View all</button>
+                    <div className="flex items-end justify-between mb-8 px-2">
+                      <div>
+                        <h3 className="text-2xl font-black text-foreground">Spaces</h3>
+                        <p className="text-xs font-medium text-muted-foreground mt-1">Organized collections of your best insights.</p>
+                      </div>
+                      <button 
+                        onClick={() => setActiveView("library")}
+                        className="text-xs font-bold text-primary hover:underline uppercase tracking-widest"
+                      >
+                        View all
+                      </button>
                     </div>
                     {spaces.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {spaces.slice(0, 6).map(space => (
-                          <button 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {spaces.slice(0, 6).map((space, i) => (
+                          <motion.button 
                             key={space.id} 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 + i * 0.05 }}
                             onClick={() => handleSidebarClick({ type: "Space", id: space.id, name: space.name })}
-                            className="flex flex-col p-5 bg-card border border-border rounded-[32px] hover:border-primary/20 hover:shadow-lg transition-all text-left shadow-sm group aspect-square justify-between"
+                            className="group flex flex-col p-8 bg-card border border-border rounded-[40px] hover:border-primary hover:shadow-2xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden aspect-square"
                           >
-                            <div className="w-10 h-10 bg-secondary rounded-2xl flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                               <FolderOpen className="h-5 w-5" />
+                            <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
+                               <FolderOpen className="h-32 w-32 -mr-16 -mt-16 rotate-12" />
                             </div>
-                            <div>
-                              <span className="text-base font-bold block truncate text-foreground">{space.name}</span>
-                              <span className="text-xs text-muted-foreground font-medium">{space.videoIds.length} items</span>
+                            
+                            <div className="w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center mb-auto group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500 group-hover:rotate-6">
+                               <FolderOpen className="h-6 w-6" />
                             </div>
-                          </button>
+                            
+                            <div className="relative z-10">
+                              <span className="text-xl font-black block truncate text-foreground mb-1">{space.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{space.videoIds.length} Materials</span>
+                                <div className="h-1 w-1 rounded-full bg-border" />
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active</span>
+                              </div>
+                            </div>
+                          </motion.button>
                         ))}
                       </div>
                     ) : (

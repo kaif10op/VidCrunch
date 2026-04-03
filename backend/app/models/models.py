@@ -221,6 +221,7 @@ class Analysis(Base):
     related_video_ids: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    status_message: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     progress_percentage: Mapped[int] = mapped_column(Integer, default=0)
     estimated_remaining_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

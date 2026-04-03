@@ -9,8 +9,7 @@ import {
   Mic, 
   Loader2,
   StopCircle,
-  X,
-  FileVideo
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -21,7 +20,7 @@ import { API_BASE_URL } from "@/lib/constants";
 interface UrlInputProps {
   onSubmit: (urls: string[], options: Record<string, unknown>) => void;
   isLoading: boolean;
-  onUploadComplete?: (analysisId: string) => void;
+  onUploadComplete?: (videoId: string, analysisId: string) => void;
   analysisStyle?: string;
   onStyleChange?: (style: string) => void;
 }
@@ -77,7 +76,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
         }
       });
 
-      const uploadPromise = new Promise<{ id: string; title: string }>((resolve, reject) => {
+      const uploadPromise = new Promise<{ id: string; title: string; analysis_id: string }>((resolve, reject) => {
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
@@ -109,7 +108,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
       toast.success(`"${result.title}" uploaded! Processing will begin shortly.`);
       
       if (onUploadComplete && result.id) {
-        onUploadComplete(result.id);
+        onUploadComplete(result.id, result.analysis_id);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed";
@@ -201,10 +200,10 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
   };
 
   const actions = [
-    { title: "Upload", desc: isUploading ? "Uploading..." : "File, audio, video", icon: isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />, badge: isUploading ? undefined : "Popular", badgeColor: "bg-emerald-500/10 text-emerald-500" },
+    { title: "Upload", desc: isUploading ? "Uploading..." : "File, audio, video", icon: isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />, badge: isUploading ? undefined : "Popular", badgeColor: "bg-green-100 text-green-700" },
     { title: "Link", desc: "YouTube, Website", icon: <LinkIcon className="h-5 w-5" />, active: true },
     { title: "Paste", desc: "Copied Text", icon: <Clipboard className="h-5 w-5" /> },
-    { title: "Record", desc: isRecording ? "Stop Recording" : "Record Lecture", icon: isRecording ? <StopCircle className="h-5 w-5 text-destructive animate-pulse" /> : <Mic className="h-5 w-5" /> }
+    { title: "Record", desc: isRecording ? "Stop Recording" : "Record Lecture", icon: isRecording ? <StopCircle className="h-5 w-5 text-red-500 animate-pulse" /> : <Mic className="h-5 w-5" /> }
   ];
 
   const formatTime = (seconds: number) => {
@@ -237,14 +236,14 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
             aria-label={action.title}
             className={cn(
               "flex flex-col items-center justify-center p-6 rounded-[40px] bg-card border border-border shadow-sm hover:shadow-2xl hover:shadow-foreground/5 hover:border-primary transition-all group aspect-square relative overflow-hidden",
-              (action.title === "Record" && isRecording) && "border-destructive/50 bg-destructive/5"
+              (action.title === "Record" && isRecording) && "border-red-500/50 bg-red-500/5"
             )}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-muted/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             
             <div className={cn(
               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 mb-4 z-10",
-              (action.title === "Record" && isRecording) ? "bg-destructive text-destructive-foreground" : "bg-secondary text-foreground group-hover:bg-primary group-hover:text-primary-foreground group-hover:rotate-6"
+              (action.title === "Record" && isRecording) ? "bg-red-500 text-white" : "bg-secondary text-foreground group-hover:bg-primary group-hover:text-primary-foreground group-hover:rotate-6"
             )}>
               {action.icon}
             </div>

@@ -52,38 +52,36 @@ async def list_spaces(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # 1. Fetch spaces with basic info
     result = await db.execute(
-        select(
-            Space,
-            func.count(distinct(SpaceVideo.id)).label("video_count"),
-            func.count(distinct(SpaceDocument.id)).label("document_count"),
-            func.count(distinct(Note.id)).label("note_count"),
-        )
-        .outerjoin(SpaceVideo, SpaceVideo.space_id == Space.id)
-        .outerjoin(SpaceDocument, SpaceDocument.space_id == Space.id)
-        .outerjoin(Note, Note.space_id == Space.id)
-        .options(selectinload(Space.space_videos).joinedload(SpaceVideo.video))
+        select(Space)
         .where(Space.user_id == user.id)
-        .group_by(Space.id)
         .order_by(Space.created_at.desc())
+        .options(
+            selectinload(Space.space_videos).joinedload(SpaceVideo.video),
+            selectinload(Space.space_documents),
+            selectinload(Space.space_notes)
+        )
     )
+    spaces = result.scalars().all()
 
+    # 2. Return mapped response
     return [
         SpaceResponse(
-            id=space.id,
-            name=space.name,
-            description=space.description,
-            is_public=space.is_public,
-            video_count=video_count or 0,
-            document_count=document_count or 0,
-            note_count=note_count or 0,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            is_public=s.is_public,
+            video_count=len(s.space_videos),
+            document_count=len(s.space_documents),
+            note_count=len(s.space_notes),
             video_ids=[
-                (sv.video.platform_id if sv.video else str(sv.video_id)) 
-                for sv in space.space_videos if sv is not None
+                (sv.video.platform_id if sv.video and sv.video.platform_id else str(sv.video_id))
+                for sv in s.space_videos
             ],
-            created_at=space.created_at,
+            created_at=s.created_at,
         )
-        for space, video_count, document_count, note_count in result.all()
+        for s in spaces
     ]
 
 
@@ -187,38 +185,42 @@ async def remove_video_from_space(
     try:
         potential_uuid = UUID(video_id)
         # 1. Check if it's a direct Video ID
-        v_res = await db.execute(select(Video.id).where(Video.id == potential_uuid))
-        v_id = v_res.scalar_one_or_none()
-        if v_id:
-            video_db_id = v_id
+        v_res = await db.scalar(select(Video.id).where(Video.id == potential_uuid))
+        if v_res:
+            video_db_id = v_res
         else:
-            # 2. Check if it's an Analysis ID
-            a_res = await db.execute(select(Analysis.video_id).where(Analysis.id == potential_uuid))
-            video_db_id = a_res.scalar_one_or_none()
-            
-            # 3. Check if it's a direct SpaceVideo ID
-            if not video_db_id:
-                sv_res = await db.execute(select(SpaceVideo.video_id).where(SpaceVideo.id == potential_uuid))
-                video_db_id = sv_res.scalar_one_or_none()
+            # 2. Check if it's an Analysis ID (common for history items)
+            a_res = await db.scalar(select(Analysis.video_id).where(Analysis.id == potential_uuid))
+            if a_res:
+                video_db_id = a_res
     except ValueError:
-        # Not a UUID, try platform_id
         pass
 
-    # 4. Try platform_id search (either directly or via fallback)
+    # 3. Try platform_id search (YouTube ID)
     if not video_db_id:
-        v_res = await db.execute(select(Video.id).where(Video.platform_id == video_id))
-        video_db_id = v_res.scalar_one_or_none()
+        v_res = await db.scalar(select(Video.id).where(Video.platform_id == video_id))
+        video_db_id = v_res
 
     if not video_db_id:
         raise HTTPException(status_code=404, detail=f"Target video '{video_id}' not found")
 
-    result = await db.execute(
+    # Find the link
+    link_res = await db.execute(
         select(SpaceVideo).where(
             SpaceVideo.space_id == id_uuid, 
             SpaceVideo.video_id == video_db_id
         )
     )
-    sv = result.scalar_one_or_none()
+    sv = link_res.scalar_one_or_none()
+    if not sv:
+        # One last fallback: Maybe we passed the SpaceVideo primary key itself?
+        try:
+            potential_uuid = UUID(video_id)
+            sv_res = await db.execute(select(SpaceVideo).where(SpaceVideo.id == potential_uuid))
+            sv = sv_res.scalar_one_or_none()
+        except ValueError:
+            pass
+            
     if not sv:
         raise HTTPException(status_code=404, detail="Video relation not found in this space")
 

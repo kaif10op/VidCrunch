@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { FolderOpen, PlusCircle, History as HistoryIcon } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import UrlInput from "@/components/UrlInput";
 import { Button } from "@/components/ui/button";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -10,6 +10,7 @@ import { useSpacesContext } from "@/contexts/SpacesContext";
 import { getRelativeDate } from "@/lib/utils";
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const { user } = useAuthContext();
   const { 
     handleSubmit, 
@@ -37,7 +38,13 @@ export default function DashboardPage() {
       <UrlInput 
         onSubmit={handleSubmit} 
         isLoading={isLoading} 
-        onUploadComplete={(id) => toast.success(`Video uploaded (ID: ${id}). Analysis will begin shortly.`)} 
+        onUploadComplete={(videoId, analysisId) => {
+          toast.success(`Video uploaded! Processing started.`);
+          // Navigate to the analysis page to track progress
+          if (analysisId) {
+            navigate(`/analysis/${analysisId}`);
+          }
+        }} 
         analysisStyle={analysisStyle}
         onStyleChange={setAnalysisStyle}
       />

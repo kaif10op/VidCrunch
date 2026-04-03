@@ -126,6 +126,7 @@ async def get_analysis_status(
     result = await db.execute(
         select(
             Analysis.status, 
+            Analysis.status_message,
             Analysis.error_message,
             Analysis.progress_percentage,
             Analysis.estimated_remaining_seconds
@@ -140,6 +141,7 @@ async def get_analysis_status(
     return {
         "status": row.status, 
         "error": row.error_message,
+        "status_message": row.status_message,
         "progress_percentage": row.progress_percentage,
         "estimated_remaining_seconds": row.estimated_remaining_seconds
     }
