@@ -318,28 +318,45 @@ def _frontend_redirect(user: User, access_token: str, refresh_token: str) -> Red
     return RedirectResponse(url=f"{settings.FRONTEND_URL}?{params}")
 
 
-async def _upsert_oauth_user(db: AsyncSession, email: str, name: str, avatar_url: Optional[str], provider: str, provider_id: str) -> User:
+async def _upsert_oauth_user(
+    db: AsyncSession, 
+    email: str, 
+    name: str, 
+    avatar_url: Optional[str], 
+    provider: str, 
+    provider_id: str
+) -> User:
     """Helper to find or create a user from OAuth info."""
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
+    try:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
 
-    if not user:
-        user = User(
-            email=email,
-            name=name,
-            avatar_url=avatar_url,
-            auth_provider=provider,
-            auth_provider_id=provider_id,
-        )
-        db.add(user)
-        await db.flush()
-        await get_credit_balance(db, user.id)
-    else:
-        user.name = name or user.name
-        user.avatar_url = avatar_url or user.avatar_url
-    
-    await db.commit()
-    return user
+        if not user:
+            user = User(
+                email=email,
+                name=name,
+                avatar_url=avatar_url,
+                auth_provider=provider,
+                auth_provider_id=provider_id,
+            )
+            db.add(user)
+            await db.flush()
+            # Initialize credits
+            await get_credit_balance(db, user.id)
+        else:
+            user.name = name or user.name
+            user.avatar_url = avatar_url or user.avatar_url
+            if provider_id:
+                user.auth_provider_id = provider_id
+        
+        await db.commit()
+        await db.refresh(user)
+        return user
+    except Exception as e:
+        await db.rollback()
+        print(f"CRITICAL ERROR in _upsert_oauth_user: {str(e)}")
+        raise
+
 
 
 @router.get("/google/authorize")
@@ -363,65 +380,86 @@ async def google_authorize(response: Response):
 
 
 @router.get("/google/callback")
-async def google_oauth_get_callback(request: Request, code: str, state: str, db: AsyncSession = Depends(get_db)):
+async def google_oauth_get_callback(
+    request: Request, 
+    code: str, 
+    state: str, 
+    db: AsyncSession = Depends(get_db)
+):
     """Handle Google OAuth redirect — exchange code, upsert user, redirect to frontend."""
-    cookie_state = request.cookies.get("oauth_state")
-    print(f"DEBUG: Google Callback - State: {state}, Cookie State: {cookie_state}")
-    if not cookie_state or cookie_state != state:
-        print(f"WARNING: CSRF cookie missing or mismatch. Cookie: {cookie_state}, Received: {state}")
-        # In development, we might proceed if the state matches but cookie is missing due to SameSite issues
-        if not cookie_state and settings.DEBUG:
-            print("WARNING: Proceeding without cookie in DEBUG mode")
-        else:
+    try:
+        cookie_state = request.cookies.get("oauth_state")
+        print(f"DEBUG: Google Callback - State: {state}, Cookie State: {cookie_state}")
+        
+        # State validation (CSRF Protection)
+        if not cookie_state or cookie_state != state:
+            print(f"WARNING: CSRF mismatch. Expected {cookie_state}, Go {state}")
             return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
 
-    async with httpx.AsyncClient() as client:
-        print(f"DEBUG: Exchanging code for token...")
-        token_resp = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": settings.GOOGLE_CLIENT_ID,
-                "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                "redirect_uri": f"{settings.OAUTH_REDIRECT_BASE}/api/auth/google/callback",
-                "grant_type": "authorization_code",
-            },
+        async with httpx.AsyncClient() as client:
+            print("DEBUG: Exchanging code for token...")
+            token_resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": f"{settings.OAUTH_REDIRECT_BASE}/api/auth/google/callback",
+                    "grant_type": "authorization_code",
+                },
+                timeout=10.0
+            )
+
+            if token_resp.status_code != 200:
+                print(f"ERROR: Token exchange failed: {token_resp.text}")
+                return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=token_exchange_failed")
+
+            tokens = token_resp.json()
+            print("DEBUG: Fetching user info...")
+            user_resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+                timeout=10.0
+            )
+
+            if user_resp.status_code != 200:
+                print(f"ERROR: User info fetch failed: {user_resp.text}")
+                return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=user_info_failed")
+
+            user_info = user_resp.json()
+            print(f"DEBUG: Google User email: {user_info.get('email')}")
+
+        # Final DB Upsert
+        # Google uses 'id' in v2, but 'sub' in OpenID. We handle both just in case.
+        provider_id = user_info.get("id") or user_info.get("sub")
+        if not provider_id:
+            print(f"ERROR: No provider ID found in user_info: {user_info}")
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=no_user_id")
+
+        user = await _upsert_oauth_user(
+            db,
+            email=user_info["email"],
+            name=user_info.get("name", user_info["email"]),
+            avatar_url=user_info.get("picture"),
+            provider="google",
+            provider_id=str(provider_id),
         )
 
-        if token_resp.status_code != 200:
-            print(f"ERROR: Google token exchange failed: {token_resp.status_code} - {token_resp.text}")
-            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=oauth_failed")
-
-        tokens = token_resp.json()
-        print(f"DEBUG: Fetching user info...")
-        user_resp = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        response = _frontend_redirect(
+            user,
+            create_access_token(str(user.id)),
+            create_refresh_token(str(user.id)),
         )
+        response.delete_cookie("oauth_state")
+        return response
 
-        if user_resp.status_code != 200:
-            print(f"ERROR: Google user info fetch failed: {user_resp.status_code} - {user_resp.text}")
-            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=oauth_failed")
+    except Exception as e:
+        import traceback
+        print(f"CRITICAL OAUTH CALLBACK ERROR: {str(e)}")
+        print(traceback.format_exc())
+        error_msg = str(e).replace(' ', '_')
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=server_error&detail={error_msg}")
 
-        user_info = user_resp.json()
-        print(f"DEBUG: Google User Info: {user_info.get('email')}")
-
-    user = await _upsert_oauth_user(
-        db,
-        email=user_info["email"],
-        name=user_info.get("name", user_info["email"]),
-        avatar_url=user_info.get("picture"),
-        provider="google",
-        provider_id=user_info["id"],
-    )
-
-    response = _frontend_redirect(
-        user,
-        create_access_token(str(user.id)),
-        create_refresh_token(str(user.id)),
-    )
-    response.delete_cookie("oauth_state")
-    return response
 
 
 @router.get("/github/authorize")
