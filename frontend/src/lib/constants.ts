@@ -4,7 +4,11 @@ export const APP_NAME = "VidCrunch" as const;
 export const APP_DESCRIPTION = "AI-powered YouTube video learning platform — summarize, quiz, and master any video" as const;
 
 /** API Configuration */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+export const API_BASE_URL = 
+  import.meta.env.VITE_API_BASE_URL || 
+  (typeof window !== "undefined" && window.location.hostname !== "localhost" 
+    ? "https://vidcrunch.onrender.com" 
+    : "http://localhost:8000");
 export const API_TIMEOUT_MS = 30_000;
 
 /** Polling */
