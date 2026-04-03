@@ -37,12 +37,22 @@ _redis_client = None
 async def init_redis_pool() -> None:
     """Initialize Redis connection pool."""
     global _redis_pool, _redis_client
-    _redis_pool = redis.ConnectionPool.from_url(
-        settings.REDIS_URL,
-        max_connections=50,
-        decode_responses=True,
-    )
-    _redis_client = redis.Redis(connection_pool=_redis_pool)
+    try:
+        print(f"DEBUG: Initializing Redis pool with URL: {settings.REDIS_URL[:20]}...")
+        _redis_pool = redis.ConnectionPool.from_url(
+            settings.REDIS_URL,
+            max_connections=50,
+            decode_responses=True,
+        )
+        _redis_client = redis.Redis(connection_pool=_redis_pool)
+        # Test connection
+        await _redis_client.ping()
+        print("DEBUG: Redis connected successfully.")
+    except Exception as e:
+        print(f"ERROR: Failed to initialize Redis: {str(e)}")
+        # In production, we might want to continue without Redis if it's optional,
+        # but here it's likely required for background tasks/ARQ.
+        raise
 
 
 async def get_redis() -> redis.Redis:
@@ -56,10 +66,15 @@ async def get_redis() -> redis.Redis:
 async def close_redis_pool() -> None:
     """Close Redis connection pool."""
     global _redis_pool, _redis_client
-    if _redis_client:
-        await _redis_client.close()
-    if _redis_pool:
-        await _redis_pool.disconnect()
+    try:
+        if _redis_client:
+            await _redis_client.close()
+        if _redis_pool:
+            await _redis_pool.disconnect()
+        print("DEBUG: Redis pool closed.")
+    except Exception as e:
+        print(f"ERROR: Failed to close Redis pool: {str(e)}")
+
 
 
 class Base(DeclarativeBase):
