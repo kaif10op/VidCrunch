@@ -587,8 +587,8 @@ async def _call_ai(provider: str, model: str, messages: list[dict], require_json
             "Content-Type": "application/json",
         }
         if provider == "openrouter":
-            headers["HTTP-Referer"] = "https://youtube-genius.app"
-            headers["X-Title"] = "YouTube Genius"
+            headers["HTTP-Referer"] = "https://vidcrunch.app"
+            headers["X-Title"] = "VidCrunch"
 
         body = {
             "model": model,

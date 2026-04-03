@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     """All environment variables for the backend."""
 
     # ── App ──
-    APP_NAME: str = "YouTube Genius"
+    APP_NAME: str = "VidCrunch"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     SECRET_KEY: str = "change-me-in-production"

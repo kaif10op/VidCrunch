@@ -22,51 +22,33 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Vendor chunks - split by size and purpose
           if (id.includes("node_modules")) {
-            // React core
-            if (id.includes("react-dom") || id.includes("react/")) {
-              return "vendor-react";
+            // Core React/Router - Keep together to prevent "createContext" undefined issues
+            if (
+              id.includes("react") || 
+              id.includes("react-dom") || 
+              id.includes("react-router") || 
+              id.includes("scheduler")
+            ) {
+              return "vendor-core";
             }
-            // Router and routing
-            if (id.includes("react-router") || id.includes("wouter")) {
-              return "vendor-router";
-            }
-            // Radix UI - group by component type
-            if (id.includes("@radix-ui")) {
-              if (id.includes("dialog") || id.includes("popover") || id.includes("sheet")) {
-                return "vendor-ui-overlay";
-              }
-              if (id.includes("select") || id.includes("combobox") || id.includes("command")) {
-                return "vendor-ui-select";
-              }
+            
+            // Major UI modules
+            if (id.includes("@radix-ui") || id.includes("lucide-react") || id.includes("framer-motion")) {
               return "vendor-ui";
             }
-            // Animation
-            if (id.includes("framer-motion")) {
-              return "vendor-motion";
+            
+            // Large data components
+            if (id.includes("recharts") || id.includes("reactflow") || id.includes("@xyflow")) {
+              return "vendor-data-viz";
             }
-            // Charts
-            if (id.includes("recharts")) {
-              return "vendor-charts";
+            
+            // Markdown and related
+            if (id.includes("markdown") || id.includes("remark") || id.includes("rehype")) {
+              return "vendor-content";
             }
-            // Mind maps / flow
-            if (id.includes("reactflow") || id.includes("@xyflow")) {
-              return "vendor-flow";
-            }
-            // Video
-            if (id.includes("react-youtube")) {
-              return "vendor-video";
-            }
-            // Markdown
-            if (id.includes("react-markdown") || id.includes("remark-") || id.includes("rehype-")) {
-              return "vendor-markdown";
-            }
-            // State / data
-            if (id.includes("@tanstack") || id.includes("zustand") || id.includes("jotai")) {
-              return "vendor-state";
-            }
-            return "vendor-other";
+
+            return "vendor-utils";
           }
         },
       },
