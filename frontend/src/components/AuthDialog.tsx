@@ -85,17 +85,25 @@ export function AuthDialog({ onSuccess, trigger }: { onSuccess?: () => void; tri
               {/* OAuth Buttons */}
               <div className="grid grid-cols-2 gap-4">
                 <Button 
+                  type="button"
                   variant="outline" 
                   className="rounded-2xl h-14 gap-3 border-border/70 bg-background hover:bg-secondary transition-all font-medium shadow-none" 
-                  onClick={() => handleOAuth("google")}
+                  onClick={() => {
+                    console.log("Navigating to Google OAuth:", `${API_BASE_URL}/api/auth/google/authorize`);
+                    handleOAuth("google");
+                  }}
                 >
                   <Google className="h-4 w-4" />
                   Google
                 </Button>
                 <Button 
+                  type="button"
                   variant="outline" 
                   className="rounded-2xl h-14 gap-3 border-border/70 bg-background hover:bg-secondary transition-all font-medium shadow-none" 
-                  onClick={() => handleOAuth("github")}
+                  onClick={() => {
+                    console.log("Navigating to GitHub OAuth:", `${API_BASE_URL}/api/auth/github/authorize`);
+                    handleOAuth("github");
+                  }}
                 >
                   <Github className="h-4 w-4" />
                   GitHub
