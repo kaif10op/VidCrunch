@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { useSpaces as useSpacesHook } from "@/hooks/use-spaces";
+import { useSpaces as useSpacesHook } from "@/hooks/use-spaces.ts";
 import type { HistoryItem, Space } from "@/types";
 
 interface SpacesContextValue {
@@ -13,8 +13,15 @@ interface SpacesContextValue {
   handleRenameSpace: (id: string, name: string) => Promise<void>;
   handleDeleteSpace: (id: string, selectedSpaceId?: string | null) => Promise<boolean>;
   handleAddToSpace: (spaceId: string, videoId: string) => Promise<void>;
+  handleRemoveVideoFromSpace: (spaceId: string, videoId: string) => Promise<void>;
   handleDeleteHistoryItem: (id: string) => Promise<void>;
   handleClearHistory: () => Promise<void>;
+  handleUploadDocument: (spaceId: string, file: File) => Promise<any>;
+  handleRemoveDocument: (spaceId: string, docId: string) => Promise<void>;
+  handleCreateNote: (spaceId: string, title: string, content: string) => Promise<any>;
+  handleDeleteNote: (spaceId: string, noteId: string) => Promise<void>;
+  handleUpdateNote: (spaceId: string, noteId: string, title: string, content: string) => Promise<any>;
+  handleSendChat: (spaceId: string, message: string, onChunk: (chunk: string) => void) => Promise<void>;
 }
 
 const SpacesContext = createContext<SpacesContextValue | null>(null);

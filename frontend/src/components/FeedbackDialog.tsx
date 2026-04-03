@@ -24,10 +24,10 @@ export default function FeedbackDialog() {
 
   return (
     <Dialog open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen}>
-      <DialogContent className="rounded-3xl border-gray-100 shadow-2xl">
+      <DialogContent className="rounded-3xl border-border bg-card shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Send Feedback</DialogTitle>
-          <DialogDescription className="text-sm font-medium text-gray-500">
+          <DialogTitle className="text-xl font-bold text-foreground">Send Feedback</DialogTitle>
+          <DialogDescription className="text-sm font-medium text-muted-foreground">
             Help us improve TubeBrain. What's on your mind?
           </DialogDescription>
         </DialogHeader>
@@ -35,13 +35,13 @@ export default function FeedbackDialog() {
           value={feedbackText}
           onChange={(e) => setFeedbackText(e.target.value)}
           placeholder="I love the synthesis mode but..." 
-          className="min-h-[120px] rounded-2xl border-gray-100 focus:ring-1 focus:ring-black"
+          className="min-h-[120px] rounded-2xl border-border bg-secondary/50 focus:ring-1 focus:ring-primary"
           disabled={isSubmitting}
         />
         <DialogFooter>
           <Button 
             onClick={handleSubmit} 
-            className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white"
+            className="rounded-xl font-semibold text-sm h-10 px-6 bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={isSubmitting || !feedbackText.trim()}
           >
             {isSubmitting ? "Sending..." : "Send"}

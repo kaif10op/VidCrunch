@@ -51,14 +51,14 @@ const MindMapTab = ({ mindMap }: MindMapTabProps) => {
         data: { label: n.label },
         position: { x, y },
         style: {
-          background: isCentral ? "#ffffff" : "#f8fafc",
-          border: `2px solid ${isCentral ? "#111" : "#e2e8f0"}`,
+          background: isCentral ? "var(--background)" : "var(--secondary)",
+          border: `2px solid ${isCentral ? "var(--primary)" : "var(--border)"}`,
           borderRadius: "24px",
-          color: "#111",
+          color: "var(--foreground)",
           padding: isCentral ? "15px 25px" : "10px 18px",
           fontSize: isCentral ? "14px" : "12px",
           fontWeight: isCentral ? "900" : "700",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+          boxShadow: "0 4px 12px var(--shadow)",
           maxWidth: isCentral ? "220px" : "180px",
           textAlign: "center",
         },
@@ -75,9 +75,9 @@ const MindMapTab = ({ mindMap }: MindMapTabProps) => {
       source: e.source,
       target: e.target,
       label: e.label || "",
-      style: { stroke: "#e2e8f0", strokeWidth: 2 },
-      labelStyle: { fill: "#64748b", fontSize: 10, fontWeight: 700 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#cbd5e1" },
+      style: { stroke: "var(--border)", strokeWidth: 2 },
+      labelStyle: { fill: "var(--muted-foreground)", fontSize: 10, fontWeight: 700 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--border)" },
       type: "smoothstep",
     }));
   }, [mindMap]);
@@ -89,8 +89,8 @@ const MindMapTab = ({ mindMap }: MindMapTabProps) => {
   if (!mindMap?.nodes?.length) {
     return (
       <div className="text-center py-16 text-muted-foreground">
-        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-100">
-          <Map className="h-6 w-6 text-gray-300" />
+        <div className="w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-4 border border-border">
+          <Map className="h-6 w-6 text-muted-foreground/30" />
         </div>
         <p className="text-sm font-semibold text-foreground">Mind map not generated</p>
         <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">Try using "Educational Deep-Dive" mode for a visual mind map.</p>
@@ -99,7 +99,7 @@ const MindMapTab = ({ mindMap }: MindMapTabProps) => {
   }
 
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden border border-gray-100 shadow-sm" style={{ height: "min(600px, 70vh)", background: "#ffffff" }}>
+    <div className="relative w-full rounded-3xl overflow-hidden border border-border shadow-sm" style={{ height: "min(600px, 70vh)", background: "transparent" }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -110,11 +110,25 @@ const MindMapTab = ({ mindMap }: MindMapTabProps) => {
         fitViewOptions={{ padding: 0.2 }}
         attributionPosition="bottom-right"
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#f1f5f9" />
-        <Controls style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }} />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--border)" />
+        <Controls 
+          style={{ 
+            background: "var(--card)", 
+            color: "var(--foreground)",
+            border: "1px solid var(--border)", 
+            borderRadius: "12px", 
+            boxShadow: "0 4px 12px var(--shadow)" 
+          }} 
+        />
         <MiniMap 
-          style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
-          nodeColor={() => "#111"}
+          style={{ 
+            background: "var(--card)", 
+            border: "1px solid var(--border)", 
+            borderRadius: "12px", 
+            boxShadow: "0 4px 12px var(--shadow)" 
+          }}
+          nodeColor={() => "var(--primary)"}
+          maskColor="var(--background)"
         />
       </ReactFlow>
     </div>

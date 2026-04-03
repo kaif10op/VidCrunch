@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIMENSION: int = 1536
 
+    # ── Heavy Processing Control ──
+    DISABLE_LOCAL_WHISPER: bool = False
+
     # ── Razorpay ──
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""

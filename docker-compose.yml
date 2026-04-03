@@ -51,7 +51,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      sh -c "python3 -m alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   # ── Background Worker ──
   worker:
@@ -70,7 +72,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: arq app.workers.tasks.WorkerSettings
+    command: >
+      sh -c "python3 -m alembic upgrade head &&
+             arq app.workers.tasks.WorkerSettings"
 
   # ── Vite Frontend ──
   frontend:

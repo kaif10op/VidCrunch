@@ -112,97 +112,84 @@ const Sidebar = ({
 
   return (
     <aside className={cn(
-      "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-black h-screen flex flex-col transition-all duration-300 shrink-0", 
-      isCollapsed ? "w-[80px]" : "w-[240px]",
+      "border-r border-border bg-card h-screen flex flex-col transition-all duration-500 shrink-0", 
+      isCollapsed ? "w-20" : "w-72",
       className
     )}>
       {/* Logo & Toggle */}
-      <div className={cn("flex items-center justify-between px-5 pt-5 pb-4", isCollapsed && "px-3")}>
+      <div className={cn("flex items-center justify-between px-6 pt-6 pb-4", isCollapsed && "px-4")}>
         {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-black dark:bg-white rounded flex items-center justify-center">
-              <span className="text-white dark:text-black text-[12px] font-bold">TB</span>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <Zap className="text-primary-foreground h-4 w-4 fill-primary-foreground" />
             </div>
-            <span className="font-bold text-lg tracking-tight text-foreground">TubeBrain</span>
+            <span className="font-bold text-xl tracking-tight text-foreground">TubeBrain</span>
           </div>
         )}
-        <button 
-          onClick={() => onCollapse(!isCollapsed)}
-          className={cn(
-            "p-1.5 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-lg text-gray-400 hover:text-foreground transition-all",
-            isCollapsed && "mx-auto"
-          )}
-        >
-          {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
-      </div>
-
-      {/* Add Content */}
-      <div className="px-3 mb-4">
-        <Link
-          to="/dashboard"
-          className={cn(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all text-left text-foreground",
-            isCollapsed && "justify-center px-0 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-900"
-          )}
-          title={isCollapsed ? "Add content" : undefined}
-        >
-          <Plus className="h-4 w-4" />
-          {!isCollapsed && <span>Add content</span>}
-        </Link>
+        {isCollapsed && (
+           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center mx-auto shadow-lg shadow-primary/20">
+              <Zap className="text-primary-foreground h-5 w-5 fill-primary-foreground" />
+           </div>
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="px-3 space-y-0.5 mb-2" aria-label="Main navigation">
+      <nav className="px-4 space-y-1 mt-6" aria-label="Main navigation">
         {navItems.map((item) => (
           <Link 
             key={item.name}
             to={item.path}
             className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-all text-left",
+              "w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all text-left group",
               currentPath === item.path 
-                ? "bg-gray-100 dark:bg-gray-900 text-foreground font-medium" 
-                : "text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-foreground",
+                ? "bg-secondary text-foreground font-bold" 
+                : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
               isCollapsed && "justify-center px-0"
             )}
             title={isCollapsed ? item.name : undefined}
           >
-            <item.icon className="h-4 w-4" />
-            {!isCollapsed && item.name}
+            <item.icon className={cn(
+              "h-5 w-5 transition-transform group-hover:scale-110",
+              currentPath === item.path ? "text-primary" : "text-muted-foreground/50"
+            )} />
+            {!isCollapsed && <span>{item.name}</span>}
           </Link>
         ))}
       </nav>
 
+      <div className="w-full px-6 my-4">
+        <div className="h-px bg-border w-full" />
+      </div>
+
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 pb-4">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 pb-4">
         {/* Spaces */}
         {user && !isCollapsed && (
           <div>
-            <h3 className="px-3 text-xs font-medium text-muted-foreground mb-2 mt-4">Spaces</h3>
+            <div className="flex items-center justify-between px-3 mb-3">
+               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50">Spaces</h3>
+               <button 
+                 onClick={() => setIsCreatingSpace(true)}
+                 className="p-1 hover:bg-secondary rounded-lg text-muted-foreground transition-all"
+               >
+                 <Plus className="h-3.5 w-3.5" />
+               </button>
+            </div>
             
-            {/* New Space Button */}
-            <button 
-              onClick={() => setIsCreatingSpace(true)}
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>New Space</span>
-            </button>
-            
-            <div className="space-y-0.5 mt-1">
+            <div className="space-y-1">
               {isCreatingSpace && (
-                <div className="px-3 py-2 flex flex-col gap-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg mb-2 border border-gray-100 dark:border-gray-800">
+                <div className="px-3 py-3 flex flex-col gap-2 bg-secondary/30 rounded-2xl mb-2 border border-border animate-in fade-in slide-in-from-top-2">
                   <input
                     autoFocus
                     value={newSpaceName}
                     onChange={(e) => setNewSpaceName(e.target.value)}
                     onKeyUp={(e) => e.key === "Enter" && handleCreateSpace()}
                     placeholder="Space name..."
-                    className="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 text-sm p-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 dark:text-white"
+                    className="bg-background border border-border text-sm p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground font-medium"
                   />
                   <div className="flex items-center gap-2">
-                    <Button onClick={handleCreateSpace} size="sm" className="h-7 bg-black dark:bg-white text-white dark:text-black rounded-lg text-xs flex-1">Add</Button>
-                    <button onClick={() => setIsCreatingSpace(false)} className="p-1 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all dark:text-gray-400"><X className="h-4 w-4" /></button>
+                    <Button onClick={handleCreateSpace} size="sm" className="h-8 rounded-xl text-xs flex-1 font-bold">Create</Button>
+                    <button onClick={() => setIsCreatingSpace(false)} className="p-1.5 hover:bg-secondary rounded-xl transition-all text-muted-foreground"><X className="h-4 w-4" /></button>
                   </div>
                 </div>
               )}
@@ -217,33 +204,33 @@ const Sidebar = ({
                         onChange={(e) => setEditingName(e.target.value)}
                         onKeyUp={(e) => e.key === "Enter" && handleRename()}
                         onBlur={handleRename}
-                        className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 w-full dark:text-white"
+                        className="bg-card border border-border text-sm p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 w-full text-foreground font-medium"
                       />
-                      <button onClick={handleRename} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-green-600">
-                        <Check className="h-3 w-3" />
-                      </button>
                     </div>
                   ) : (
                     <Link 
                       to={`/space/${space.id}`}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-3 py-1.5 text-sm rounded-lg transition-all text-left",
-                        currentPath === `/space/${space.id}` ? "bg-gray-100 dark:bg-gray-900 text-foreground font-medium" : "text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-foreground"
+                        "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-all text-left group",
+                        currentPath === `/space/${space.id}` ? "bg-secondary text-foreground font-bold" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                       )}
                     >
-                      <LayoutGrid className="h-3.5 w-3.5" />
-                      <span className="truncate pr-8">{space.name}</span>
+                      <div className={cn(
+                        "w-1.5 h-1.5 rounded-full transition-all",
+                        currentPath === `/space/${space.id}` ? "bg-primary scale-125" : "bg-muted-foreground/30 group-hover:bg-muted-foreground/60"
+                      )} />
+                      <span className="truncate flex-1">{space.name}</span>
                       
-                      <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
+                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
                         <button 
                           onClick={(e) => handleStartRename(e, space)}
-                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-400 hover:text-black dark:hover:text-white"
+                          className="p-1 hover:bg-card rounded-lg text-muted-foreground hover:text-foreground"
                         >
                           <MoreHorizontal className="h-3 w-3" />
                         </button>
                         <button 
                           onClick={(e) => handleDeleteSpace(e, space.id)}
-                          className="p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded text-gray-400 hover:text-red-500"
+                          className="p-1 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -256,78 +243,74 @@ const Sidebar = ({
           </div>
         )}
 
-        {/* My Library */}
-        {user && !isCollapsed && (
-          <div className="mt-4">
-            <Link
-              to="/library"
-              className={cn(
-                "w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors text-left",
-                currentPath === "/library" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span>My Library</span>
-              <ChevronRight className="h-3 w-3 text-gray-300 dark:text-gray-600" />
-            </Link>
-          </div>
-        )}
-        
         {user && isCollapsed && (
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <Link
-              to="/library"
-              className={cn(
-                "p-2 rounded-lg transition-all",
-                currentPath === "/library" ? "bg-gray-100 dark:bg-gray-900 text-foreground" : "text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-foreground"
-              )}
-              title="My Library"
-            >
-              <Library className="h-4 w-4" />
-            </Link>
-          </div>
+           <div className="mt-8 flex flex-col items-center gap-4">
+              <div className="w-8 h-px bg-border" />
+              {spaces.slice(0, 5).map(space => (
+                 <Link 
+                   key={space.id}
+                   to={`/space/${space.id}`}
+                   className={cn(
+                     "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                     currentPath === `/space/${space.id}` ? "bg-secondary text-primary font-bold" : "text-muted-foreground hover:bg-secondary/50"
+                   )}
+                   title={space.name}
+                 >
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      currentPath === `/space/${space.id}` ? "bg-primary" : "bg-muted-foreground/30"
+                    )} />
+                 </Link>
+              ))}
+           </div>
         )}
       </div>
+
       {/* Bottom Section */}
-      <div className={cn("mt-auto px-3 pb-4", isCollapsed && "px-1")}>
+      <div className={cn("mt-auto px-4 pb-6", isCollapsed && "px-2")}>
         {user ? (
-          <div className="space-y-2">
-             {!isCollapsed && (
-              <button 
-                onClick={onTopUp}
-                className="w-full h-8 flex items-center justify-center text-[11px] font-semibold text-[#00a86b] bg-[#e6f9f1] dark:bg-[#00a86b]/10 hover:bg-[#d5f2e4] dark:hover:bg-[#00a86b]/20 rounded-lg transition-colors border border-[#ccf0dd] dark:border-[#00a86b]/30"
-              >
-                Upgrade Plan
-              </button>
-            )}
-            
-            <Link 
-              to="/settings"
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-2 rounded-2xl transition-all group",
-                currentPath === "/settings" ? "bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-900",
-                isCollapsed && "px-2 justify-center"
-              )}
-              title={isCollapsed ? "Settings" : undefined}
-            >
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8 rounded-xl">
-                  <AvatarImage src={user.avatar_url} />
-                  <AvatarFallback className="text-[12px] font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                    {user.name?.charAt(0).toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
+          <div className="space-y-3">
+             <div className="bg-secondary/30 rounded-2xl p-4 border border-border">
                 {!isCollapsed && (
-                  <div className="flex flex-col items-start overflow-hidden">
-                    <span className="text-sm font-bold truncate max-w-[110px] text-foreground">{user.name || "User"}</span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Free Plan</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Coins className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-[11px] font-black text-foreground">{credits ?? 0} Credits</span>
+                    </div>
+                    <button 
+                      onClick={onTopUp}
+                      className="text-[10px] font-black uppercase text-primary hover:underline"
+                    >
+                      Refill
+                    </button>
                   </div>
                 )}
-              </div>
-              {!isCollapsed && <ChevronRight className="h-3.5 w-3.5 text-gray-300 dark:text-gray-700 group-hover:text-foreground transition-colors" />}
-            </Link>
+                
+                <Link 
+                  to="/settings"
+                  className={cn(
+                    "w-full flex items-center gap-3 transition-all group",
+                    isCollapsed && "justify-center"
+                  )}
+                >
+                  <Avatar className="h-9 w-9 rounded-xl border border-border group-hover:border-primary transition-all">
+                    <AvatarImage src={user.avatar_url} />
+                    <AvatarFallback className="text-[12px] font-black bg-primary text-primary-foreground">
+                      {user.name?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  {!isCollapsed && (
+                    <div className="flex flex-col items-start overflow-hidden flex-1">
+                      <span className="text-sm font-bold truncate w-full text-foreground group-hover:text-primary transition-colors">{user.name || "User"}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Free Plan</span>
+                    </div>
+                  )}
+                  {!isCollapsed && <Settings className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-foreground transition-colors" />}
+                </Link>
+             </div>
           </div>
         ) : (
-          <div className="px-1">
+          <div className="px-2">
             <AuthDialog onSuccess={onAuthSuccess} />
           </div>
         )}

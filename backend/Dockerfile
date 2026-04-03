@@ -2,10 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System dependencies for yt-dlp, ffmpeg (for whisper audio), and postgres
+# System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
+    tesseract-ocr \
+    libtesseract-dev \
+    poppler-utils \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp binary

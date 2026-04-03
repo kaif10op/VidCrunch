@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search,
@@ -15,11 +15,12 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { apiFetch, getAuthToken } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/constants";
 
 interface UrlInputProps {
   onSubmit: (urls: string[], options: Record<string, unknown>) => void;
   isLoading: boolean;
-  onUploadComplete?: (analysisId: string) => void;
+  onUploadComplete?: (videoId: string, analysisId: string) => void;
   analysisStyle?: string;
   onStyleChange?: (style: string) => void;
 }
@@ -38,9 +39,95 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
   const [urls, setUrls] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    const allowedTypes = ["video/mp4", "video/x-matroska", "video/quicktime", "video/webm", "audio/mpeg", "audio/wav", "audio/mp3", "audio/m4a"];
+    
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|mkv|mov|webm|mp3|wav|m4a)$/i)) {
+      toast.error(`Unsupported file type: ${file.type || file.name.split('.').pop()}`);
+      return;
+    }
+
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxSize) {
+      toast.error("File too large. Maximum size is 500MB.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = getAuthToken();
+      
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(percent);
+        }
+      });
+
+      const uploadPromise = new Promise<{ id: string; title: string; analysis_id: string }>((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch {
+              reject(new Error("Invalid response"));
+            }
+          } else {
+            try {
+              const error = JSON.parse(xhr.responseText);
+              reject(new Error(error.detail || `Upload failed: ${xhr.status}`));
+            } catch {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+      });
+
+      xhr.open("POST", `${API_BASE_URL}/api/videos/upload`);
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
+      xhr.send(formData);
+
+      const result = await uploadPromise;
+      
+      toast.success(`"${result.title}" uploaded! Processing will begin shortly.`);
+      
+      if (onUploadComplete && result.id) {
+        onUploadComplete(result.id, result.analysis_id);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      toast.error(msg);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, [onUploadComplete]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  }, [handleFileUpload]);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -148,32 +235,51 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
             onClick={() => handleActionClick(action.title)}
             aria-label={action.title}
             className={cn(
-              "flex flex-col items-center justify-center p-6 rounded-[40px] bg-white border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-black/5 hover:border-gray-200 transition-all group aspect-square relative overflow-hidden",
-              (action.title === "Record" && isRecording) && "border-red-200 bg-red-50/10"
+              "flex flex-col items-center justify-center p-6 rounded-[40px] bg-card border border-border shadow-sm hover:shadow-2xl hover:shadow-foreground/5 hover:border-primary transition-all group aspect-square relative overflow-hidden",
+              (action.title === "Record" && isRecording) && "border-red-500/50 bg-red-500/5"
             )}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-gradient-to-br from-muted/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             
             <div className={cn(
               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 mb-4 z-10",
-              (action.title === "Record" && isRecording) ? "bg-red-100 text-red-600" : "bg-gray-50 text-gray-900 group-hover:bg-black group-hover:text-white group-hover:rotate-6"
+              (action.title === "Record" && isRecording) ? "bg-red-500 text-white" : "bg-secondary text-foreground group-hover:bg-primary group-hover:text-primary-foreground group-hover:rotate-6"
             )}>
               {action.icon}
             </div>
             <span className="text-sm font-bold text-foreground z-10">{action.title}</span>
-            <span className="text-[10px] text-muted-foreground mt-1.5 text-center line-clamp-1 z-10 font-medium">{action.desc}</span>
+            <span className="text-[10px] text-muted-foreground mt-1.5 text-center line-clamp-1 z-10 font-medium">
+              {action.title === "Upload" && isUploading ? `${uploadProgress}%` : action.desc}
+            </span>
+            {action.title === "Upload" && isUploading && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary z-20">
+                <div 
+                  className="h-full bg-primary transition-all duration-300" 
+                  style={{ width: `${uploadProgress}%` }} 
+                />
+              </div>
+            )}
           </motion.button>
         ))}
       </div>
+
+      {/* Hidden file input for uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*,audio/*,.mp4,.mkv,.mov,.webm,.mp3,.wav,.m4a"
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
       <div className="max-w-5xl mx-auto space-y-4">
         {urls.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {urls.map((u, i) => (
-              <div key={i} className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl text-xs font-bold border border-gray-100 text-gray-600">
+              <div key={i} className="flex items-center gap-2 bg-secondary px-3 py-1.5 rounded-xl text-xs font-bold border border-border text-muted-foreground">
                 <LinkIcon className="h-3 w-3" />
                 <span className="truncate max-w-[200px]">{u}</span>
-                <button onClick={() => removeUrl(i)} className="hover:text-red-500 transition-colors">
+                <button onClick={() => removeUrl(i)} className="hover:text-destructive transition-colors">
                    <X className="h-3 w-3" />
                 </button>
               </div>
@@ -184,16 +290,16 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
         <div className="relative group">
           <form
             onSubmit={handleSubmit}
-            className="relative flex items-center bg-white border border-gray-100 rounded-[32px] px-6 h-16 shadow-sm focus-within:shadow-md focus-within:border-gray-200 transition-all gap-4"
+            className="relative flex items-center bg-card border border-border rounded-[32px] px-6 h-16 shadow-sm focus-within:shadow-md focus-within:border-primary/50 transition-all gap-4"
           >
-            <Search className="h-5 w-5 text-gray-400" />
+            <Search className="h-5 w-5 text-muted-foreground/50" />
             <input
               type="text"
               value={url}
               onChange={e => setUrl(e.target.value)}
               disabled={isLoading}
               placeholder="Learn anything"
-              className="flex-1 bg-transparent text-lg focus:outline-none placeholder:text-gray-400 font-medium"
+              className="flex-1 bg-transparent text-lg focus:outline-none placeholder:text-muted-foreground/30 font-medium"
             />
             
             <button
@@ -201,7 +307,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
               disabled={isLoading || (!url.trim() && urls.length === 0)}
               className={cn(
                 "w-10 h-10 rounded-full flex items-center justify-center transition-all",
-                (url.trim() || urls.length > 0) ? "bg-black text-white" : "bg-gray-100 text-gray-300"
+                (url.trim() || urls.length > 0) ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground/30"
               )}
             >
               <ArrowRight className="h-5 w-5" />
@@ -211,7 +317,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
 
         
         {urls.length > 1 && (
-          <p className="text-center text-xs font-medium text-green-600 animate-pulse">
+          <p className="text-center text-xs font-medium text-emerald-600 dark:text-emerald-400 animate-pulse">
             Synthesis Mode: Comparative analysis of {urls.length + (url.trim() ? 1 : 0)} videos enabled
           </p>
         )}
@@ -223,7 +329,7 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
           transition={{ delay: 0.5 }}
           className="flex items-center gap-2 justify-center flex-wrap pt-2"
         >
-          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">Style:</span>
+          <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider mr-1">Style:</span>
           {ANALYSIS_STYLES.map((s) => (
             <button
               key={s.id}
@@ -231,8 +337,8 @@ const UrlInput = ({ onSubmit, isLoading, onUploadComplete, analysisStyle = "", o
               className={cn(
                 "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
                 (analysisStyle || "") === s.id
-                  ? "bg-black text-white border-black"
-                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary hover:text-foreground"
               )}
               title={s.desc}
             >

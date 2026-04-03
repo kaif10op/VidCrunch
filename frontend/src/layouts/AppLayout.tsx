@@ -37,7 +37,7 @@ export function AppLayout() {
   const { spaces, handleCreateNewSpace } = useSpacesContext();
 
   return (
-    <div className="flex h-screen bg-white dark:bg-black overflow-hidden font-sans text-gray-900 dark:text-gray-100">
+    <div className="flex h-screen bg-background overflow-hidden font-sans text-foreground">
       {/* Sidebar - Desktop */}
       {!isFocusMode && (
         <Sidebar 
@@ -59,51 +59,53 @@ export function AppLayout() {
           "flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out relative"
         )}
       >
-        {/* Global Nav / Header */}
+        {/* Global Nav / Header - Portal Style */}
         {!isFocusMode && (
           <motion.div 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="h-16 border-b border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-40 shrink-0"
+            className="h-16 border-b border-border bg-background/70 backdrop-blur-xl sticky top-0 z-40 shrink-0 flex items-center transition-all px-6"
           >
-            <div className="max-w-5xl mx-auto px-6 w-full h-full flex items-center justify-between">
+            <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
               <div className="flex items-center gap-4 min-w-0">
-
-                  
-                  <div className="flex items-center gap-2 text-gray-300 dark:text-gray-700 mx-2 hidden md:flex">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-200 dark:bg-gray-800" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                       <PlusCircle className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex flex-col">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 leading-none mb-1">
+                        {activeAnalysisId && videoData ? "Deep Analysis" : "Portal"}
+                      </p>
+                      <h1 className="text-sm font-bold text-foreground truncate max-w-[200px] md:max-w-[400px]">
+                        {activeAnalysisId && videoData ? videoData.title : "Dashboard"}
+                      </h1>
+                    </div>
                   </div>
-
-                  {activeAnalysisId && videoData ? (
-                    <div className="flex items-center gap-3 min-w-0">
-                      <h1 className="text-sm font-bold text-foreground truncate max-w-[300px]">{videoData.title}</h1>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-2">Dashboard</span>
-                    </div>
-                  )}
               </div>
               
               <div className="flex items-center gap-3 shrink-0">
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => setIsFocusMode(!isFocusMode)}
                     className={cn(
-                      "rounded-xl h-9 px-4 text-xs font-bold uppercase tracking-wider transition-all gap-2",
-                      isFocusMode ? "bg-black text-white hover:bg-gray-900" : "bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 border border-gray-100 dark:border-gray-800"
+                      "rounded-xl h-9 px-4 text-[10px] font-black uppercase tracking-widest transition-all gap-2 border border-border shadow-sm",
+                      isFocusMode 
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" 
+                        : "bg-background text-muted-foreground hover:bg-secondary/80"
                     )}
                   >
-                    <GraduationCap className="h-4 w-4" />
-                    {isFocusMode ? "Exit Focus" : "Focus Mode"}
+                    <GraduationCap className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
                   </Button>
+
+                  <div className="w-[1px] h-6 bg-border mx-1" />
 
                   <Button
                     variant="default"
                     size="sm"
                     onClick={() => setIsTopUpOpen(true)}
-                    className="rounded-full h-9 px-5 text-xs font-bold uppercase tracking-wider bg-black dark:bg-white text-white dark:text-black hover:bg-gray-900 dark:hover:bg-gray-100 shadow-lg shadow-black/5"
+                    className="rounded-xl h-9 px-5 text-[10px] font-black uppercase tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
                   >
                     Upgrade
                   </Button>
@@ -127,7 +129,7 @@ export function AppLayout() {
             >
               <Button
                 onClick={() => setIsFocusMode(false)}
-                className="rounded-full h-12 px-8 bg-black dark:bg-white text-white dark:text-black shadow-2xl hover:bg-gray-900 dark:hover:bg-gray-100 font-black text-xs uppercase tracking-[0.2em] border border-white/20 backdrop-blur-sm group"
+                className="rounded-full h-12 px-8 bg-primary text-primary-foreground shadow-2xl hover:bg-primary/90 font-black text-xs uppercase tracking-[0.2em] border border-primary-foreground/20 backdrop-blur-sm group"
               >
                 <X className="mr-2 h-4 w-4 group-hover:rotate-90 transition-transform duration-300" />
                 Exit Focus Mode

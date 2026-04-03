@@ -7,6 +7,8 @@ export type {
   QuizQuestion,
   RoadmapStep,
   MindMapData,
+  DocumentData,
+  NoteData,
 } from "@/lib/storage";
 
 export type { User, Transaction } from "@/hooks/use-auth";

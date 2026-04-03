@@ -20,15 +20,16 @@ httpx[http2]>=0.27.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 
-# AI & ML
+# AI & ML (Core - cloud APIs only)
 openai>=1.30.0
 tiktoken>=0.7.0
 groq>=0.9.0
 google-generativeai>=0.7.0
 tenacity>=8.2.0
 
-# Video Processing
+# Video Processing (Core)
 yt-dlp>=2024.0.0
+youtube-transcript-api
 
 # Payments
 razorpay>=1.4.0
@@ -41,7 +42,22 @@ boto3>=1.34.0
 # Testing
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
-httpx>=0.27.0
-youtube-transcript-api
-openai-whisper
-faster-whisper
+
+# ──────────────────────────────────────────────
+# OPTIONAL DEPENDENCIES
+# Install with: pip install -r requirements-optional.txt
+# ──────────────────────────────────────────────
+# These are NOT installed by default as they are:
+# - Large (Whisper models are 100s of MB)
+# - Only needed for fallback transcription when cloud APIs fail
+# - Require additional system dependencies (ffmpeg, tesseract, poppler)
+#
+# Local Whisper transcription:
+#   pip install openai-whisper faster-whisper
+#
+# Document OCR (for scanned PDFs):
+#   pip install pytesseract pdf2image Pillow
+#   Also needs: apt-get install tesseract-ocr poppler-utils
+#
+# Document parsing (PDF/DOCX):
+#   pip install pypdf python-docx

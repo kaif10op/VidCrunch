@@ -23,7 +23,7 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="rounded-2xl overflow-hidden border border-gray-100"
+      className="rounded-2xl overflow-hidden border border-border"
     >
       {/* Video player */}
       <div className="relative w-full bg-black aspect-video">
@@ -64,12 +64,12 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
                 />
                 <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-black shadow-xl transform transition-all group-hover:scale-110 border border-white">
+                  <div className="w-16 h-16 rounded-full bg-card/90 backdrop-blur-md flex items-center justify-center text-foreground shadow-xl transform transition-all group-hover:scale-110 border border-border">
                     <Play className="h-6 w-6 fill-current ml-1" />
                   </div>
                 </div>
                 {duration && duration !== "N/A" && (
-                  <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-md">
+                  <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm text-foreground text-[10px] font-semibold px-2 py-1 rounded-md border border-border">
                     {duration}
                   </div>
                 )}
@@ -80,7 +80,7 @@ const VideoPreview = ({ videoId, title, channel, duration, views, likes, publish
       </div>
 
       {/* Video info bar */}
-      <div className="bg-white px-5 py-3 flex items-center justify-between">
+      <div className="bg-card px-5 py-3 flex items-center justify-between border-t border-border">
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-foreground truncate">{title}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">{channel}</p>

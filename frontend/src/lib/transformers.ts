@@ -11,11 +11,14 @@ export function transformBackendAnalysis(data: any): {
   metadata: Metadata;
   videoIds: string[];
 } {
-  const { analysis, video, transcript_text, transcript_segments } = data;
+  // Handle both wrapped response and direct analysis object
+  const analysis = data.analysis || data || {};
+  const video = data.video || {};
+  const transcript_segments = data.transcript_segments || analysis.transcript_segments || [];
 
   // Transform VideoData
   const vData: VideoData = {
-    title: video.title || "Video Analysis",
+    title: video.title || analysis.video_title || "Video Analysis",
     channel: video.channel || "YouTube",
     duration: video.duration_seconds ? String(video.duration_seconds) : "N/A",
     views: video.view_count ? video.view_count.toLocaleString() : "N/A",
@@ -42,7 +45,7 @@ export function transformBackendAnalysis(data: any): {
     roadmap: analysis.roadmap,
     mind_map: analysis.mind_map,
     flashcards: analysis.flashcards,
-    transcript_segments: transcript_segments || analysis.transcript_segments || [],
+    transcript_segments: transcript_segments,
     learning_context: analysis.learning_context,
     glossary: analysis.glossary || [],
     resources: analysis.resources || []
@@ -54,7 +57,7 @@ export function transformBackendAnalysis(data: any): {
     channel: vData.channel,
     duration: vData.duration,
     thumbnails: [{
-      url: video.thumbnail_url || `https://img.youtube.com/vi/${video.platform_id}/maxresdefault.jpg`,
+      url: video.thumbnail_url || analysis.video_thumbnail || `https://img.youtube.com/vi/${video.platform_id || analysis.video_platform_id}/maxresdefault.jpg`,
       width: 1280,
       height: 720
     }]
@@ -64,7 +67,7 @@ export function transformBackendAnalysis(data: any): {
     videoData: vData,
     summaryData: sData,
     metadata: mData,
-    videoIds: [video.platform_id]
+    videoIds: [video.platform_id || analysis.video_platform_id]
   };
 }
 

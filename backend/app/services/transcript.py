@@ -16,11 +16,13 @@ import re
 import subprocess
 import tempfile
 import httpx
+from app.config import get_settings
 from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+settings = get_settings()
 
 @dataclass
 class TranscriptSegment:
@@ -39,80 +41,164 @@ class TranscriptResult:
 
 
 class TranscriptEngine:
-    """Multi-stage transcript extraction with automatic fallback."""
+    """Multi-stage transcript extraction with automatic fallback and progress reporting."""
     
     _whisper_model = None
+    _whisper_available = None  # Cache availability check
+
+    @classmethod
+    def _check_whisper_available(cls) -> bool:
+        """Check if any Whisper library is available and not disabled by settings."""
+        if settings.DISABLE_LOCAL_WHISPER:
+            return False
+            
+        if cls._whisper_available is not None:
+            return cls._whisper_available
+        try:
+            from faster_whisper import WhisperModel
+            cls._whisper_available = True
+        except ImportError:
+            try:
+                import whisper
+                cls._whisper_available = True
+            except ImportError:
+                cls._whisper_available = False
+                logger.info("No Whisper library available. Local transcription disabled.")
+        return cls._whisper_available
 
     @classmethod
     def _get_whisper_model(cls):
+        """Lazy-load Whisper model only when actually needed."""
         if cls._whisper_model is None:
             try:
                 from faster_whisper import WhisperModel
                 logger.info("Loading Faster-Whisper 'base' model (int8)...")
                 cls._whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
             except ImportError:
-                import whisper
-                logger.info("Faster-Whisper not found. Falling back to standard Whisper 'base' model...")
-                cls._whisper_model = whisper.load_model("base")
+                try:
+                    import whisper
+                    logger.info("Faster-Whisper not found. Loading standard Whisper 'base' model...")
+                    cls._whisper_model = whisper.load_model("base")
+                except ImportError:
+                    logger.error("No Whisper library available!")
+                    return None
         return cls._whisper_model
 
     MIN_WORD_COUNT = 50  # Quality gate: reject transcripts shorter than this
 
-    async def extract(self, video_id: str) -> TranscriptResult:
-        """Main entry: attempt all stages in order until one succeeds."""
+    async def extract(
+        self, 
+        video_id: str, 
+        progress_callback: Optional[callable] = None
+    ) -> TranscriptResult:
+        """
+        Main entry: attempt stages in order until one succeeds.
+        
+        Args:
+            video_id: YouTube video ID
+            progress_callback: Optional async callback(stage: int, total: int, message: str)
+        """
         url = f"https://www.youtube.com/watch?v={video_id}"
+        
+        async def report(stage: int, total: int, msg: str):
+            if progress_callback:
+                try:
+                    await progress_callback(stage, total, msg)
+                except Exception:
+                    pass
 
-        # Stage 1: youtube-transcript-api
-        logger.info(f"DEBUG [{video_id}]: Stage 1 start...", )
+        # Stage 1: youtube-transcript-api (fastest, most reliable)
+        await report(1, 6, "Checking YouTube captions...")
+        logger.info(f"[{video_id}] Stage 1: youtube-transcript-api")
         result = await self._try_transcript_api(video_id)
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
             result.source = "youtube_transcript_api"
-            logger.info(f"DEBUG [{video_id}]: Stage 1 success.", )
+            logger.info(f"[{video_id}] ✓ Stage 1 success ({result.word_count} words)")
             return result
 
-        # Stage 2: Manual captions
-        logger.info(f"DEBUG [{video_id}]: Stage 2 start...", )
+        # Stage 2: Manual captions via yt-dlp
+        await report(2, 6, "Checking manual subtitles...")
+        logger.info(f"[{video_id}] Stage 2: yt-dlp manual captions")
         result = await self._try_ytdlp_captions(url, auto=False)
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
             result.source = "manual_captions"
-            logger.info(f"DEBUG [{video_id}]: Stage 2 success.", )
+            logger.info(f"[{video_id}] ✓ Stage 2 success ({result.word_count} words)")
             return result
 
-        # Stage 3: Auto-generated captions
-        logger.info(f"DEBUG [{video_id}]: Stage 3 start...", )
+        # Stage 3: Auto-generated captions via yt-dlp
+        await report(3, 6, "Checking auto-generated subtitles...")
+        logger.info(f"[{video_id}] Stage 3: yt-dlp auto captions")
         result = await self._try_ytdlp_captions(url, auto=True)
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
             result.source = "auto_captions"
-            logger.info(f"DEBUG [{video_id}]: Stage 3 success.", )
+            logger.info(f"[{video_id}] ✓ Stage 3 success ({result.word_count} words)")
             return result
 
-        # Stage 4: Groq Cloud Whisper (Fast, zero CPU)
-        logger.info(f"DEBUG [{video_id}]: Stage 4 start (Groq Cloud)...", )
-        result = await self._try_groq_whisper(url, video_id)
-        if result and result.word_count >= self.MIN_WORD_COUNT:
-            result.source = "groq_whisper"
-            logger.info(f"DEBUG [{video_id}]: Stage 4 success.", )
-            return result
+        # Stage 4 & 5: Cloud transcription (Gemini Flash Native Audio - FAST & FREE)
+        logger.info(f"[{video_id}] Stage 4: Gemini Native Audio Analysis")
+        
+        # Try Gemini Flash with its native audio processing
+        cloud_result = await self._try_gemini_whisper(url, video_id, report=report)
+        if cloud_result and cloud_result.word_count >= self.MIN_WORD_COUNT:
+            logger.info(f"[{video_id}] ✓ Gemini Audio success ({cloud_result.word_count} words)")
+            return cloud_result
 
-        # Stage 5: Gemini Cloud (Fast, zero CPU)
-        logger.info(f"DEBUG [{video_id}]: Stage 5 start (Gemini Cloud)...", )
-        result = await self._try_gemini_whisper(url, video_id)
-        if result and result.word_count >= self.MIN_WORD_COUNT:
-            result.source = "gemini_cloud"
-            logger.info(f"DEBUG [{video_id}]: Stage 5 success.", )
-            return result
+        # Stage 5: Groq fallback
+        logger.info(f"[{video_id}] Stage 5: Groq fallback")
+        cloud_result = await self._try_groq_whisper(url, video_id, report=report)
+        if cloud_result and cloud_result.word_count >= self.MIN_WORD_COUNT:
+            logger.info(f"[{video_id}] ✓ Groq Whisper success ({cloud_result.word_count} words)")
+            return cloud_result
 
-        # Stage 6: Local Whisper (Slow fallback)
-        logger.info(f"DEBUG [{video_id}]: Stage 6 start (Local Whisper)...", )
-        result = await self._try_whisper(url, video_id)
-        if result and result.word_count >= self.MIN_WORD_COUNT:
-            result.source = "local_whisper"
-            logger.info(f"DEBUG [{video_id}]: Stage 6 success.", )
-            return result
+        # Stage 6: Local Whisper (last resort, slow)
+        if self._check_whisper_available():
+            await report(6, 6, "Local transcription (this may take a while)...")
+            logger.info(f"[{video_id}] Stage 6: Local Whisper")
+            result = await self._try_whisper(url, video_id)
+            if result and result.word_count >= self.MIN_WORD_COUNT:
+                result.source = "local_whisper"
+                logger.info(f"[{video_id}] ✓ Stage 6 success ({result.word_count} words)")
+                await report(6, 6, "Success!")
+                return result
+        elif settings.DISABLE_LOCAL_WHISPER:
+            logger.info(f"[{video_id}] Stage 6 skipped (DISABLE_LOCAL_WHISPER=True)")
+        else:
+            logger.info(f"[{video_id}] Stage 6 skipped (Whisper not installed)")
 
         # All stages failed
+        await report(6, 6, "All stages failed.")
         logger.error(f"[{video_id}] ✗ All transcript extraction stages failed")
-        raise TranscriptError(f"Could not extract transcript for video {video_id}")
+        raise TranscriptError(f"Could not extract transcript for video {video_id}. Consider providing a different URL or checking your Cloud API keys.")
+
+    async def _try_cloud_transcription_parallel(self, url: str, video_id: str) -> Optional[TranscriptResult]:
+        """Try Groq and Gemini cloud transcription in parallel, return first success."""
+        import asyncio
+        from app.config import get_settings
+        settings = get_settings()
+        
+        tasks = []
+        
+        # Only add tasks for configured APIs
+        if settings.GROQ_API_KEY:
+            tasks.append(self._try_groq_whisper(url, video_id))
+        if settings.GOOGLE_AI_KEY:
+            tasks.append(self._try_gemini_whisper(url, video_id))
+        
+        if not tasks:
+            logger.warning(f"[{video_id}] No cloud transcription APIs configured")
+            return None
+        
+        # Race: return first successful result
+        for coro in asyncio.as_completed(tasks):
+            try:
+                result = await coro
+                if result and result.word_count >= self.MIN_WORD_COUNT:
+                    return result
+            except Exception as e:
+                logger.debug(f"[{video_id}] Cloud transcription attempt failed: {e}")
+                continue
+        
+        return None
 
     async def _try_transcript_api(self, video_id: str) -> Optional[TranscriptResult]:
         """Use youtube-transcript-api to fetch official YouTube transcripts."""
@@ -179,7 +265,7 @@ class TranscriptEngine:
             logger.warning(f"youtube-transcript-api failed: {e}")
             return None
 
-    async def _try_groq_whisper(self, url: str, video_id: str) -> Optional[TranscriptResult]:
+    async def _try_groq_whisper(self, url: str, video_id: str, report: Optional[callable] = None) -> Optional[TranscriptResult]:
         """Download audio and transcribe with Groq Cloud Whisper API."""
         try:
             from app.config import get_settings
@@ -188,24 +274,28 @@ class TranscriptEngine:
                 logger.warning("GROQ_API_KEY not configured, skipping cloud transcription")
                 return None
 
+            if report: await report(5, 6, "Groq: Downloading audio...")
             with tempfile.TemporaryDirectory() as tmpdir:
                 audio_path = os.path.join(tmpdir, f"{video_id}.m4a")
 
-                # Download audio only (m4a is usually better for cloud APIs than low-quality mp3)
+                # Download audio only (Best available format)
                 cmd = [
                     "yt-dlp",
-                    "-f", "ba[ext=m4a]/ba",  # Prefer m4a
+                    "-f", "ba/b",  # Any working audio/video format
                     "-x",
                     "--audio-format", "m4a",
                     "-o", audio_path,
                     "--no-warnings",
                     "--quiet",
+                    "--extractor-args", "youtube:player_client=android",
                     url,
                 ]
 
                 proc = await _run_subprocess(cmd, timeout=300)
                 if proc.returncode != 0:
-                    logger.warning(f"yt-dlp failed for Groq stage with code {proc.returncode}")
+                    err_msg = (proc.stderr or "Unknown error").split("\n")[0]
+                    logger.warning(f"yt-dlp failed for Groq stage: {err_msg}")
+                    if report: await report(5, 6, f"Groq: Download failed ({err_msg[:30]})")
                     return None
 
                 # Find the actual audio file
@@ -220,20 +310,6 @@ class TranscriptEngine:
                     return None
                 
                 # Compress audio with ffmpeg to stay under Groq's 25MB limit
-                # 16khz, mono, 32k bitrate is plenty for Whisper and very small
-                compressed_audio = os.path.join(tmpdir, f"{video_id}_comp.mp3")
-                ffmpeg_cmd = [
-                    "ffmpeg",
-                    "-i", actual_audio,
-                    "-ar", "16000",
-                    "-ac", "1",
-                    "-map", "a",
-                    "-b:a", "32k",
-                    "-y",
-                    compressed_audio
-                ]
-                
-                # Compress audio with ffmpeg to stay under Groq's 25MB limit
                 # v3-turbo is faster and supports multilingual
                 compressed_audio = os.path.join(tmpdir, f"{video_id}_comp.mp3")
                 ffmpeg_cmd = [
@@ -245,7 +321,7 @@ class TranscriptEngine:
                     "-y",
                     compressed_audio
                 ]
-                
+                if report: await report(5, 6, "Groq: Optimizing audio...")
                 f_proc = await _run_subprocess(ffmpeg_cmd, timeout=300)
                 if f_proc.returncode == 0 and os.path.exists(compressed_audio):
                     actual_audio = compressed_audio
@@ -262,6 +338,7 @@ class TranscriptEngine:
 
                 # Call Groq API using official SDK
                 try:
+                    if report: await report(5, 6, "Groq: Transcribing...")
                     from groq import Groq
                     client = Groq(api_key=settings.GROQ_API_KEY)
                     with open(actual_audio, "rb") as f:
@@ -302,7 +379,7 @@ class TranscriptEngine:
             logger.warning(f"Groq Cloud transcription failed: {e}")
             return None
 
-    async def _try_gemini_whisper(self, url: str, video_id: str) -> Optional[TranscriptResult]:
+    async def _try_gemini_whisper(self, url: str, video_id: str, report: Optional[callable] = None) -> Optional[TranscriptResult]:
         """Download audio and transcribe with Google AI Gemini 1.5 Flash."""
         try:
             from app.config import get_settings
@@ -311,23 +388,29 @@ class TranscriptEngine:
                 logger.warning("GOOGLE_AI_KEY not configured, skipping Gemini stage")
                 return None
 
+            if report: await report(4, 6, "Gemini: Downloading audio...")
             with tempfile.TemporaryDirectory() as tmpdir:
                 audio_path = os.path.join(tmpdir, f"{video_id}.mp3")
 
                 # Download audio
                 cmd = [
                     "yt-dlp",
+                    "-f", "ba/b",
                     "-x",
                     "--audio-format", "mp3",
                     "--audio-quality", "9",
                     "-o", audio_path,
                     "--no-warnings",
                     "--quiet",
+                    "--extractor-args", "youtube:player_client=android",
                     url,
                 ]
 
                 proc = await _run_subprocess(cmd, timeout=300)
                 if proc.returncode != 0:
+                    err_msg = (proc.stderr or "Unknown error").split("\n")[0]
+                    logger.warning(f"yt-dlp failed for Gemini stage: {err_msg}")
+                    if report: await report(4, 6, f"Gemini: Download failed ({err_msg[:30]})")
                     return None
 
                 actual_audio = None
@@ -343,6 +426,7 @@ class TranscriptEngine:
                 genai.configure(api_key=settings.GOOGLE_AI_KEY)
 
                 # 1. Upload to Files API
+                if report: await report(4, 6, "Gemini: Uploading audio...")
                 logger.info(f"DEBUG [{video_id}]: Uploading to Gemini Files API...", )
                 
                 # SDK doesn't support async upload yet, so run in thread
@@ -388,6 +472,7 @@ class TranscriptEngine:
                     )
 
                 try:
+                    if report: await report(4, 6, "Gemini: Transcribing...")
                     response = await asyncio.to_thread(_generate)
                     result_data = json.loads(response.text)
                     segments_data = result_data.get("transcription", [])
@@ -485,17 +570,21 @@ class TranscriptEngine:
             return None
 
     async def _try_whisper(self, url: str, video_id: str) -> Optional[TranscriptResult]:
-        """Download audio and transcribe with OpenAI Whisper."""
+        """Download audio and transcribe with local Whisper. Skips if Whisper not installed."""
+        if not self._check_whisper_available():
+            logger.info(f"[{video_id}] Skipping local Whisper (not installed)")
+            return None
+            
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 audio_path = os.path.join(tmpdir, f"{video_id}.mp3")
 
-                # Download audio only
+                # Download audio only (lower quality for faster download)
                 cmd = [
                     "yt-dlp",
                     "-x",
                     "--audio-format", "mp3",
-                    "--audio-quality", "5",  # Medium quality (sufficient for speech)
+                    "--audio-quality", "9",  # Lowest quality (sufficient for speech)
                     "-o", audio_path,
                     "--no-warnings",
                     "--quiet",
@@ -529,6 +618,8 @@ class TranscriptEngine:
         try:
             import asyncio
             model = self._get_whisper_model()
+            if model is None:
+                return None
             
             # Check if it's faster-whisper or standard whisper
             is_faster_whisper = getattr(model.__class__, "__module__", "").startswith("faster_whisper")
@@ -572,6 +663,170 @@ class TranscriptEngine:
             )
         except Exception as e:
             logger.error(f"Whisper transcription error: {e}")
+            return None
+
+    async def transcribe_file(
+        self,
+        file_path: str,
+        progress_callback: Optional[callable] = None
+    ) -> TranscriptResult:
+        """
+        Transcribe an uploaded audio/video file.
+        
+        Tries cloud APIs first (fast), then falls back to local Whisper.
+        
+        Args:
+            file_path: Path to audio/video file
+            progress_callback: Optional async callback(stage: int, total: int, message: str)
+        """
+        async def report(stage: int, total: int, msg: str):
+            if progress_callback:
+                try:
+                    await progress_callback(stage, total, msg)
+                except Exception:
+                    pass
+
+        video_id = "upload"
+        
+        # Try Groq Cloud first (fast)
+        await report(1, 3, "Transcribing with cloud AI...")
+        if settings.GROQ_API_KEY:
+            logger.info(f"[upload] Trying Groq cloud transcription...")
+            result = await self._transcribe_file_with_groq(file_path)
+            if result and result.word_count >= self.MIN_WORD_COUNT:
+                result.source = "groq_cloud"
+                logger.info(f"[upload] ✓ Groq cloud success ({result.word_count} words)")
+                return result
+
+        # Try Gemini Cloud
+        await report(2, 3, "Trying alternative cloud AI...")
+        if settings.GOOGLE_AI_KEY:
+            logger.info(f"[upload] Trying Gemini cloud transcription...")
+            result = await self._transcribe_file_with_gemini(file_path)
+            if result and result.word_count >= self.MIN_WORD_COUNT:
+                result.source = "gemini_cloud"
+                logger.info(f"[upload] ✓ Gemini cloud success ({result.word_count} words)")
+                return result
+
+        # Fall back to local Whisper
+        if self._check_whisper_available():
+            await report(3, 3, "Using local transcription...")
+            logger.info(f"[upload] Falling back to local Whisper...")
+            result = await self._transcribe_with_whisper(file_path)
+            if result and result.word_count >= self.MIN_WORD_COUNT:
+                result.source = "local_whisper"
+                logger.info(f"[upload] ✓ Local Whisper success ({result.word_count} words)")
+                return result
+
+        raise TranscriptError("Could not transcribe the uploaded file. Check your API keys or install Whisper.")
+
+    async def _transcribe_file_with_groq(self, file_path: str) -> Optional[TranscriptResult]:
+        """Transcribe an audio file using Groq Whisper API."""
+        try:
+            if not settings.GROQ_API_KEY:
+                return None
+
+            # Check file size
+            size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            if size_mb > 25:
+                logger.info(f"[upload] File too large for Groq ({size_mb:.2f} MB)")
+                return None
+
+            from groq import Groq
+            client = Groq(api_key=settings.GROQ_API_KEY)
+            
+            with open(file_path, "rb") as f:
+                transcription = client.audio.transcriptions.create(
+                    file=(os.path.basename(file_path), f.read()),
+                    model="whisper-large-v3-turbo",
+                    response_format="verbose_json",
+                )
+                
+                result_data = transcription.model_dump()
+                full_text = result_data.get("text", "")
+                segments_data = result_data.get("segments", [])
+                
+                segments = []
+                for s in segments_data:
+                    segments.append(TranscriptSegment(
+                        start=float(s.get("start", 0)),
+                        end=float(s.get("end", 0)),
+                        text=s.get("text", "").strip(),
+                    ))
+
+                if not segments and full_text:
+                    segments = [TranscriptSegment(start=0, end=0, text=full_text)]
+
+                return TranscriptResult(
+                    full_text=self._segments_to_timestamped_text(segments),
+                    segments=segments,
+                    language=result_data.get("language", "en"),
+                    word_count=len(full_text.split()),
+                )
+        except Exception as e:
+            logger.warning(f"Groq file transcription failed: {e}")
+            return None
+
+    async def _transcribe_file_with_gemini(self, file_path: str) -> Optional[TranscriptResult]:
+        """Transcribe an audio file using Google Gemini API."""
+        try:
+            if not settings.GOOGLE_AI_KEY:
+                return None
+
+            import base64
+            import mimetypes
+            
+            # Read file
+            with open(file_path, "rb") as f:
+                audio_data = f.read()
+            
+            # Encode as base64
+            audio_b64 = base64.standard_b64encode(audio_data).decode("utf-8")
+            mime_type = mimetypes.guess_type(file_path)[0] or "audio/mpeg"
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GOOGLE_AI_KEY}"
+            
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": audio_b64
+                            }
+                        },
+                        {
+                            "text": "Transcribe this audio. Output ONLY the spoken words, no commentary. Include timestamps in [MM:SS] format where appropriate."
+                        }
+                    ]
+                }],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 8192
+                }
+            }
+
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(url, json=payload)
+                if resp.status_code != 200:
+                    logger.warning(f"Gemini API error: {resp.status_code}")
+                    return None
+
+                data = resp.json()
+                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                
+                if not text:
+                    return None
+
+                return TranscriptResult(
+                    full_text=text.strip(),
+                    segments=[TranscriptSegment(start=0, end=0, text=text.strip())],
+                    language="en",
+                    word_count=len(text.split()),
+                )
+
+        except Exception as e:
+            logger.warning(f"Gemini file transcription failed: {e}")
             return None
 
     def _parse_subtitle_file(self, filepath: str) -> list[TranscriptSegment]:

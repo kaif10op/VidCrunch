@@ -6,8 +6,9 @@ export const removeAuthToken = (): void => localStorage.removeItem(STORAGE_KEYS.
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken();
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string> || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
@@ -46,10 +47,28 @@ interface UpdateProfilePayload {
 }
 
 export const authApi = {
-  login: (data: LoginPayload) => apiFetch("/auth/login", { method: "POST", body: JSON.stringify(data) }),
-  register: (data: RegisterPayload) => apiFetch("/auth/register", { method: "POST", body: JSON.stringify(data) }),
-  getMe: () => apiFetch("/auth/me"),
-  updateMe: (data: UpdateProfilePayload) => apiFetch("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+  login: (data: LoginPayload) => apiFetch("/api/auth/login", { method: "POST", body: JSON.stringify(data) }),
+  register: (data: RegisterPayload) => apiFetch("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
+  getMe: () => apiFetch("/api/auth/me"),
+  updateMe: (data: UpdateProfilePayload) => apiFetch("/api/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+};
+
+export const spacesApi = {
+  getSpaces: () => apiFetch("/api/spaces/"),
+  createSpace: (name: string) => apiFetch("/api/spaces/", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  }),
+  renameSpace: (id: string, name: string) => apiFetch(`/api/spaces/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  }),
+  deleteSpace: (id: string) => apiFetch(`/api/spaces/${id}`, { method: "DELETE" }),
+  addVideoToSpace: (spaceId: string, videoId: string) => apiFetch(`/api/spaces/${spaceId}/videos`, {
+    method: "POST",
+    body: JSON.stringify({ video_id: videoId }),
+  }),
+  removeVideoFromSpace: (spaceId: string, videoId: string) => apiFetch(`/api/spaces/${spaceId}/videos/${videoId}`, { method: "DELETE" }),
 };
 
 interface AnalyzePayload {
@@ -64,13 +83,13 @@ interface AnalyzePayload {
 }
 
 export const videoApi = {
-  analyze: (data: AnalyzePayload) => apiFetch("/videos/analyze", { method: "POST", body: JSON.stringify(data) }),
-  getAnalysis: (id: string) => apiFetch(`/analysis/${id}`),
+  analyze: (data: AnalyzePayload) => apiFetch("/api/videos/analyze", { method: "POST", body: JSON.stringify(data) }),
+  getAnalysis: (id: string) => apiFetch(`/api/analysis/${id}`),
 };
 
 export const creditApi = {
-  getBalance: () => apiFetch("/credits/balance"),
-  getHistory: () => apiFetch("/credits/transactions"),
+  getBalance: () => apiFetch("/api/credits/balance"),
+  getHistory: () => apiFetch("/api/credits/transactions"),
 };
 
 interface CreateOrderPayload {
@@ -84,35 +103,36 @@ interface VerifyPaymentPayload {
 }
 
 export const paymentApi = {
-  createOrder: (data: CreateOrderPayload) => apiFetch("/payments/create-order", { method: "POST", body: JSON.stringify(data) }),
-  verify: (data: VerifyPaymentPayload) => apiFetch("/payments/verify", { method: "POST", body: JSON.stringify(data) }),
-  getHistory: () => apiFetch("/payments/history"),
+  createOrder: (data: CreateOrderPayload) => apiFetch("/api/payments/create-order", { method: "POST", body: JSON.stringify(data) }),
+  verify: (data: VerifyPaymentPayload) => apiFetch("/api/payments/verify", { method: "POST", body: JSON.stringify(data) }),
+  getHistory: () => apiFetch("/api/payments/history"),
 };
 
 export const exportApi = {
   download: (analysisId: string, format: "json" | "markdown") =>
-    apiFetch("/export", {
+    apiFetch("/api/export", {
       method: "POST",
       body: JSON.stringify({ analysis_id: analysisId, format }),
     }),
 };
 
 export const chatApi = {
-  getHistory: (analysisId: string) => apiFetch(`/chat/${analysisId}/history`),
+  getHistory: (analysisId: string) => apiFetch(`/api/chat/${analysisId}/history`),
 };
 
 export const analysisApi = {
-  get: (id: string) => apiFetch(`/analysis/${id}`),
-  delete: (analysisId: string) => apiFetch(`/analysis/${analysisId}`, { method: "DELETE" }),
-  getStatus: (analysisId: string) => apiFetch(`/analysis/${analysisId}/status`),
+  get: (id: string) => apiFetch(`/api/analysis/${id}`),
+  delete: (analysisId: string) => apiFetch(`/api/analysis/${analysisId}`, { method: "DELETE" }),
+  getStatus: (analysisId: string) => apiFetch(`/api/analysis/${analysisId}/status`),
   generateTool: (analysisId: string, toolType: string, append: boolean = false, force: boolean = false) =>
-    apiFetch(`/analysis/${analysisId}/generate?tool_type=${toolType}${append ? '&append=true' : ''}${force ? '&force=true' : ''}`, { method: "POST" }),
+    apiFetch(`/api/analysis/${analysisId}/generate?tool_type=${toolType}${append ? '&append=true' : ''}${force ? '&force=true' : ''}`, { method: "POST" }),
+  regenerate: (id: string, data: any) => apiFetch(`/api/analysis/${id}/regenerate`, { method: "POST", body: JSON.stringify(data) }),
 };
 
 export const searchApi = {
-  query: (q: string) => apiFetch(`/search/?q=${encodeURIComponent(q)}`),
+  query: (q: string) => apiFetch(`/api/search/?q=${encodeURIComponent(q)}`),
 };
 
 export const feedbackApi = {
-  submit: (content: string) => apiFetch("/feedback", { method: "POST", body: JSON.stringify({ content }) }),
+  submit: (content: string) => apiFetch("/api/feedback", { method: "POST", body: JSON.stringify({ content }) }),
 };

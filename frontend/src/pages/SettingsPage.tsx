@@ -59,12 +59,12 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-12 px-6 w-full">
-      <div className="flex flex-col lg:flex-row gap-12 bg-white dark:bg-black rounded-[40px] border border-gray-100 dark:border-gray-800 shadow-2xl overflow-hidden min-h-[700px]">
+      <div className="flex flex-col lg:flex-row gap-12 bg-card rounded-[40px] border border-border shadow-2xl overflow-hidden min-h-[700px]">
         {/* Sidebar */}
-        <div className="w-full lg:w-72 border-r border-gray-50 dark:border-gray-900 p-8 flex flex-col gap-10">
+        <div className="w-full lg:w-72 border-r border-border p-8 flex flex-col gap-10">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white flex items-center justify-center">
-              <SettingsIcon className="h-6 w-6 text-white dark:text-black" />
+            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center">
+              <SettingsIcon className="h-6 w-6 text-primary-foreground" />
             </div>
             <h2 className="text-2xl font-black">Settings</h2>
           </div>
@@ -81,8 +81,8 @@ export default function SettingsPage() {
                 className={cn(
                   "flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-bold transition-all",
                   settingsTab === tab.id 
-                    ? "bg-black text-white dark:bg-white dark:text-black shadow-xl shadow-black/10 scale-[1.02]" 
-                    : "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-600"
+                    ? "bg-primary text-primary-foreground shadow-xl shadow-primary/10 scale-[1.02]" 
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 )}
               >
                 <tab.icon className="h-4 w-4" />
@@ -91,10 +91,10 @@ export default function SettingsPage() {
             ))}
           </nav>
 
-          <div className="mt-auto pt-8 border-t border-gray-50 dark:border-gray-900">
+          <div className="mt-auto pt-8 border-t border-border">
             <button 
               onClick={handleLogout}
-              className="flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all w-full text-left"
+              className="flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-bold text-red-500 hover:bg-red-500/10 transition-all w-full text-left"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
@@ -114,16 +114,16 @@ export default function SettingsPage() {
                 className="space-y-12"
               >
                 <div className="flex items-center gap-8">
-                  <Avatar className="h-28 w-28 rounded-[36px] border-4 border-white dark:border-gray-900 shadow-2xl">
+                  <Avatar className="h-28 w-28 rounded-[36px] border-4 border-background shadow-2xl">
                     <AvatarImage src={user.avatar_url} />
-                    <AvatarFallback className="bg-black dark:bg-white text-white dark:text-black text-4xl font-black">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-4xl font-black">
                       {user.name?.charAt(0) || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="text-3xl font-black text-black dark:text-white">{user.name}</h3>
-                    <p className="text-base font-medium text-gray-400">{user.email}</p>
-                    <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900 text-green-600 w-fit">
+                    <h3 className="text-3xl font-black text-foreground">{user.name}</h3>
+                    <p className="text-base font-medium text-muted-foreground">{user.email}</p>
+                    <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 w-fit">
                        <Shield className="h-3.5 w-3.5" />
                        <span className="text-[10px] font-black uppercase tracking-widest">Verified Learner</span>
                     </div>
@@ -132,20 +132,20 @@ export default function SettingsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Full Name</label>
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Full Name</label>
                     <Input 
                       value={newName} 
                       onChange={(e) => setNewName(e.target.value)}
                       placeholder="Your Name"
-                      className="h-16 rounded-2xl border-gray-100 dark:border-gray-800 px-6 font-bold focus:ring-black dark:bg-black text-lg" 
+                      className="h-16 rounded-2xl border-border px-6 font-bold focus:ring-primary bg-background text-lg" 
                     />
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Email Address</label>
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Email Address</label>
                     <Input 
                       value={user.email} 
                       disabled
-                      className="h-16 rounded-2xl border-gray-100 dark:border-gray-800 px-6 font-bold bg-gray-50/50 dark:bg-gray-900 text-gray-400 text-lg cursor-not-allowed" 
+                      className="h-16 rounded-2xl border-border px-6 font-bold bg-secondary text-muted-foreground text-lg cursor-not-allowed" 
                     />
                   </div>
                 </div>
@@ -161,21 +161,20 @@ export default function SettingsPage() {
                           className={cn(
                             "flex-1 px-4 py-5 rounded-[24px] text-xs font-black uppercase tracking-widest transition-all border-2",
                             expertise === level 
-                              ? "bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-2xl shadow-black/20" 
-                              : "bg-white dark:bg-black text-gray-400 border-gray-100 dark:border-gray-800 hover:border-gray-300"
+                              ? "bg-primary text-primary-foreground border-primary shadow-2xl shadow-primary/20" 
+                              : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30"
                           )}
                         >
                           {level}
                         </button>
                       ))}
                     </div>
-                    <p className="text-xs text-gray-400 font-medium ml-1">Adjusts the depth of synthesis and study tools generated for your videos.</p>
+                    <p className="text-xs text-muted-foreground font-medium ml-1">Adjusts the depth of synthesis and study tools generated for your videos.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
                     <div className="space-y-5">
-                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Platform Theme</label>
-                      <div className="flex gap-2 p-1 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800">
+                      <div className="flex gap-2 p-1 bg-secondary rounded-2xl border border-border">
                         {['light', 'dark', 'system'].map((t) => (
                           <button
                             key={t}
@@ -183,8 +182,8 @@ export default function SettingsPage() {
                             className={cn(
                               "flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
                               theme === t 
-                                ? "bg-white dark:bg-black text-black dark:text-white shadow-sm" 
-                                : "text-gray-400 hover:text-gray-600"
+                                ? "bg-background text-foreground shadow-sm" 
+                                : "text-muted-foreground hover:text-foreground"
                             )}
                           >
                             {t}
@@ -207,17 +206,17 @@ export default function SettingsPage() {
                             className={cn(
                               "flex items-center justify-between px-5 py-3 rounded-2xl border-2 transition-all",
                               accessibility[feature.id as keyof typeof accessibility]
-                                ? "bg-black text-white border-black dark:bg-white dark:text-black dark:border-white"
-                                : "bg-white dark:bg-black text-gray-400 border-gray-100 dark:border-gray-800 hover:border-gray-200"
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30"
                             )}
                           >
                             <span className="text-[10px] font-black uppercase tracking-widest">{feature.label}</span>
                             <div className={cn(
                               "w-8 h-4 rounded-full relative transition-colors",
-                              accessibility[feature.id as keyof typeof accessibility] ? "bg-green-500" : "bg-gray-200 dark:bg-gray-800"
+                              accessibility[feature.id as keyof typeof accessibility] ? "bg-primary-foreground" : "bg-muted"
                             )}>
                               <div className={cn(
-                                "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
+                                "absolute top-0.5 w-3 h-3 rounded-full bg-background transition-all shadow-sm",
                                 accessibility[feature.id as keyof typeof accessibility] ? "right-0.5" : "left-0.5"
                               )} />
                             </div>
@@ -232,7 +231,7 @@ export default function SettingsPage() {
                   <Button 
                     onClick={onUpdateProfile}
                     disabled={isAuthLoading || newName === user.name}
-                    className="h-14 px-12 rounded-2xl bg-black dark:bg-white text-white dark:text-black hover:bg-gray-900 dark:hover:bg-gray-100 shadow-2xl shadow-black/20 font-black uppercase tracking-widest text-sm"
+                    className="h-14 px-12 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl shadow-primary/20 font-black uppercase tracking-widest text-sm"
                   >
                     Save Profile Changes
                   </Button>
@@ -248,21 +247,21 @@ export default function SettingsPage() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-12"
               >
-                <div className="bg-black text-white p-12 rounded-[48px] shadow-2xl shadow-black/10 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-white/10 rounded-full blur-[100px] group-hover:bg-white/20 transition-all duration-700" />
+                <div className="bg-primary text-primary-foreground p-12 rounded-[48px] shadow-2xl shadow-primary/10 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-primary-foreground/10 rounded-full blur-[100px] group-hover:bg-primary-foreground/20 transition-all duration-700" />
                   <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-6">
                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50">Account Balance</span>
+                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary-foreground/50">Account Balance</span>
                     </div>
                     <div className="flex items-end gap-4">
                       <Coins className="h-14 w-14 text-amber-400 fill-amber-400 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]" />
                       <h4 className="text-8xl font-black leading-none">{credits ?? 0}</h4>
-                      <span className="text-xl font-bold text-white/40 mb-3">Credits Available</span>
+                      <span className="text-xl font-bold text-primary-foreground/40 mb-3">Credits Available</span>
                     </div>
                     <Button 
                       onClick={() => setIsTopUpOpen(true)}
-                      className="mt-10 h-10 px-8 rounded-full bg-white text-black hover:bg-gray-100 font-bold text-xs uppercase tracking-widest"
+                      className="mt-10 h-10 px-8 rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-bold text-xs uppercase tracking-widest"
                     >
                       Purchase More
                     </Button>
@@ -270,37 +269,37 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="p-10 rounded-[40px] border border-gray-100 bg-white hover:shadow-2xl hover:shadow-black/5 transition-all flex flex-col justify-between">
+                  <div className="p-10 rounded-[40px] border border-border bg-card hover:shadow-2xl hover:shadow-foreground/5 transition-all flex flex-col justify-between">
                     <div>
                       <h5 className="font-black text-2xl mb-2">Basic</h5>
-                      <p className="text-sm font-medium text-gray-400 mb-8">Occasional learning support.</p>
+                      <p className="text-sm font-medium text-muted-foreground mb-8">Occasional learning support.</p>
                       <ul className="space-y-4 mb-10">
                          {['60 mins analysis / day', 'Basic study tools', 'Email support'].map(f => (
-                           <li key={f} className="flex items-center gap-3 text-xs font-bold text-gray-600">
+                           <li key={f} className="flex items-center gap-3 text-xs font-bold text-muted-foreground">
                              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]" />
                              {f}
                            </li>
                          ))}
                       </ul>
                     </div>
-                    <Button variant="outline" className="w-full h-14 rounded-2xl border-gray-100 text-gray-400 font-black uppercase tracking-[0.2em] text-[10px] cursor-not-allowed">Active Plan</Button>
+                    <Button variant="outline" className="w-full h-14 rounded-2xl border-border text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px] cursor-not-allowed">Active Plan</Button>
                   </div>
 
-                  <div className="p-10 rounded-[40px] border-4 border-black bg-white shadow-2xl shadow-black/10 relative overflow-hidden flex flex-col justify-between group">
-                    <div className="absolute top-0 right-0 bg-black text-white px-6 py-2 rounded-bl-3xl text-[10px] font-black uppercase tracking-widest">Recommended</div>
+                  <div className="p-10 rounded-[40px] border-4 border-primary bg-card shadow-2xl shadow-primary/10 relative overflow-hidden flex flex-col justify-between group">
+                    <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-6 py-2 rounded-bl-3xl text-[10px] font-black uppercase tracking-widest">Recommended</div>
                     <div>
                       <h5 className="font-black text-2xl mb-2">TubeBrain Pro</h5>
-                      <p className="text-sm font-medium text-gray-400 mb-8">Unlimited mastery platform.</p>
+                      <p className="text-sm font-medium text-muted-foreground mb-8">Unlimited mastery platform.</p>
                       <ul className="space-y-4 mb-10">
                          {['Unlimited analysis', 'All study sets & tools', 'Priority support', 'Early access to AI models'].map(f => (
-                           <li key={f} className="flex items-center gap-3 text-xs font-bold text-gray-900">
-                             <div className="w-2 h-2 rounded-full bg-black" />
+                           <li key={f} className="flex items-center gap-3 text-xs font-bold text-foreground">
+                             <div className="w-2 h-2 rounded-full bg-primary" />
                              {f}
                            </li>
                          ))}
                       </ul>
                     </div>
-                    <Button onClick={() => setIsTopUpOpen(true)} className="w-full h-14 rounded-2xl bg-black text-white hover:bg-gray-800 font-black uppercase tracking-[0.2em] text-[10px] shadow-xl shadow-black/20 group-hover:scale-[1.02] transition-transform">Upgrade Now</Button>
+                    <Button onClick={() => setIsTopUpOpen(true)} className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-black uppercase tracking-[0.2em] text-[10px] shadow-xl shadow-primary/20 group-hover:scale-[1.02] transition-transform">Upgrade Now</Button>
                   </div>
                 </div>
               </motion.div>
@@ -315,12 +314,12 @@ export default function SettingsPage() {
                 className="space-y-12"
               >
                 <div className="flex items-center gap-6 mb-8">
-                  <div className="w-16 h-16 bg-gray-50 dark:bg-gray-900 rounded-3xl flex items-center justify-center border border-gray-100 dark:border-gray-800 shadow-inner">
-                    <Bell className="h-8 w-8 text-black dark:text-white" />
+                  <div className="w-16 h-16 bg-secondary rounded-3xl flex items-center justify-center border border-border shadow-inner">
+                    <Bell className="h-8 w-8 text-foreground" />
                   </div>
                   <div>
-                    <h4 className="text-3xl font-black text-black dark:text-white">Stay Updated</h4>
-                    <p className="text-sm font-medium text-gray-400">Configure how you receive alerts about your learning journey.</p>
+                    <h4 className="text-3xl font-black text-foreground">Stay Updated</h4>
+                    <p className="text-sm font-medium text-muted-foreground">Configure how you receive alerts about your learning journey.</p>
                   </div>
                 </div>
 
@@ -333,14 +332,14 @@ export default function SettingsPage() {
                   ].map((pref) => (
                     <div 
                       key={pref.id}
-                      className="flex items-center justify-between p-6 bg-gray-50/50 dark:bg-gray-900/50 rounded-3xl border border-gray-100 dark:border-gray-800"
+                      className="flex items-center justify-between p-6 bg-secondary rounded-3xl border border-border"
                     >
                       <div className="space-y-1">
-                        <p className="text-sm font-black text-black dark:text-white uppercase tracking-widest">{pref.label}</p>
-                        <p className="text-xs text-gray-400 font-medium">{pref.desc}</p>
+                        <p className="text-sm font-black text-foreground uppercase tracking-widest">{pref.label}</p>
+                        <p className="text-xs text-muted-foreground font-medium">{pref.desc}</p>
                       </div>
-                      <div className="w-12 h-6 rounded-full bg-black dark:bg-white relative cursor-pointer">
-                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-white dark:bg-black" />
+                      <div className="w-12 h-6 rounded-full bg-primary relative cursor-pointer">
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary-foreground" />
                       </div>
                     </div>
                   ))}

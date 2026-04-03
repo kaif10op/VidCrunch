@@ -1,5 +1,7 @@
 """Video API routes — analyze URLs, upload files, get video details."""
 
+import os
+import tempfile
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -108,19 +110,26 @@ async def upload_video(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a video file for analysis."""
-    # Validate file type
-    allowed = {"video/mp4", "video/x-matroska", "video/quicktime", "video/webm"}
-    if file.content_type not in allowed:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
+    """Upload a video or audio file for analysis."""
+    # Validate file type - support both video and audio
+    allowed_video = {"video/mp4", "video/x-matroska", "video/quicktime", "video/webm"}
+    allowed_audio = {"audio/mpeg", "audio/wav", "audio/mp3", "audio/m4a", "audio/x-m4a", "audio/mp4"}
+    allowed = allowed_video | allowed_audio
+    
+    # Also check file extension for browsers that don't send correct MIME types
+    allowed_extensions = {".mp4", ".mkv", ".mov", ".webm", ".mp3", ".wav", ".m4a"}
+    file_ext = os.path.splitext(file.filename or "")[1].lower() if file.filename else ""
+    
+    if file.content_type not in allowed and file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {file.content_type}. Supported: MP4, MKV, MOV, WebM, MP3, WAV, M4A"
+        )
 
     # Check credits
     await check_and_deduct(db, user.id, settings.CREDIT_COST_UPLOAD, "video_upload")
 
     # Save file to local temp (in production, stream to S3)
-    import tempfile
-    import os
-
     temp_dir = tempfile.mkdtemp()
     file_path = os.path.join(temp_dir, file.filename or "upload.mp4")
     with open(file_path, "wb") as f:
@@ -130,7 +139,7 @@ async def upload_video(
     # Create video record
     video = Video(
         platform="upload",
-        title=file.filename or "Uploaded Video",
+        title=file.filename or "Uploaded File",
         upload_path=file_path,
         status="pending",
     )
@@ -140,14 +149,30 @@ async def upload_video(
     # Enqueue processing
     from app.workers.tasks import enqueue_upload_processing
 
+    # Create an initial analysis record for polling
+    analysis = Analysis(
+        video_id=video.id,
+        user_id=user.id,
+        expertise_level=user.settings.expertise if user.settings else "intermediate",
+        style="detailed",
+        ai_provider=settings.DEFAULT_AI_PROVIDER,
+        ai_model=settings.DEFAULT_AI_MODEL,
+        status="queued",
+        progress_percentage=0,
+    )
+    db.add(analysis)
+    await db.commit()
+
     await enqueue_upload_processing(
         video_id=str(video.id),
+        analysis_id=str(analysis.id),
         file_path=file_path,
         user_id=str(user.id),
     )
 
     return VideoUploadResponse(
         id=video.id,
+        analysis_id=analysis.id,
         title=video.title,
         status="processing",
         message="Upload received. Processing will begin shortly.",

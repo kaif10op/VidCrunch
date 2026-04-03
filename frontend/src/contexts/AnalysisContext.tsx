@@ -122,8 +122,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         }
 
         // Use the signal for the fetch request
-        const statusRes = await apiFetch(`/analysis/${analysisId}/status`, {
-          signal: signal ? { signal } : undefined
+        const statusRes = await apiFetch(`/api/analysis/${analysisId}/status`, {
+          signal
         });
 
         if (!statusRes.ok) continue;
@@ -137,8 +137,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         }
 
         if (statusData.status === "completed") {
-          const detailRes = await apiFetch(`/analysis/${analysisId}`, {
-            signal: signal ? { signal } : undefined
+          const detailRes = await apiFetch(`/api/analysis/${analysisId}`, {
+            signal
           });
           data = await detailRes.json();
           completed = true;
@@ -187,7 +187,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setAnalysisProgress(0);
 
     try {
-      const res = await apiFetch("/videos/analyze", {
+      const res = await apiFetch("/api/videos/analyze", {
         method: "POST",
         body: JSON.stringify({
           urls: ids.map(id => `https://youtube.com/watch?v=${id}`),
@@ -290,7 +290,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(async () => {
       setIsNotesSaving(true);
       try {
-        await apiFetch(`/analysis/${activeAnalysisId}/notes`, {
+        await apiFetch(`/api/analysis/${activeAnalysisId}/notes`, {
           method: "PATCH",
           body: JSON.stringify({ user_notes: userNotes }),
         });
@@ -316,12 +316,19 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setChatMessages(updatedMessages);
     setIsChatLoading(true);
     setContextSnippet(null);
-    if (toolId === 'explain') setAiExplanation("");
-    if (toolId === 'quiz_hint' || toolId === 'quiz_explain') setQuizAIExplanation("");
-    if (toolId === 'roadmap_explain') setRoadmapAIExplanation("");
+    const lowerToolId = toolId?.toLowerCase();
+    if (lowerToolId === 'explain' || lowerToolId === 'summary' || lowerToolId === 'mindmap' || lowerToolId === 'deepdive' || lowerToolId === 'action') {
+      setAiExplanation("");
+    }
+    if (lowerToolId === 'quiz_hint' || lowerToolId === 'quiz_explain' || lowerToolId === 'quiz') {
+      setQuizAIExplanation("");
+    }
+    if (lowerToolId === 'roadmap_explain' || lowerToolId === 'roadmap') {
+      setRoadmapAIExplanation("");
+    }
     try {
       if (activeAnalysisId) {
-        const response = await fetch(`${API_BASE_URL}/chat/${activeAnalysisId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/chat/${activeAnalysisId}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -420,9 +427,18 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
                     newChat[newChat.length - 1].content = assistantMsgContent;
                     return newChat;
                   });
-                  if (toolId === 'explain') setAiExplanation(assistantMsgContent);
-                  if (toolId === 'quiz_hint' || toolId === 'quiz_explain') setQuizAIExplanation(assistantMsgContent);
-                  if (toolId === 'roadmap_explain') setRoadmapAIExplanation(assistantMsgContent);
+                  
+                  // Update specialized explanation states based on toolId
+                  const lowerToolId = toolId?.toLowerCase();
+                  if (lowerToolId === 'explain' || lowerToolId === 'summary' || lowerToolId === 'mindmap' || lowerToolId === 'deepdive' || lowerToolId === 'action') {
+                    setAiExplanation(assistantMsgContent);
+                  }
+                  if (lowerToolId === 'quiz_hint' || lowerToolId === 'quiz_explain' || lowerToolId === 'quiz') {
+                    setQuizAIExplanation(assistantMsgContent);
+                  }
+                  if (lowerToolId === 'roadmap_explain' || lowerToolId === 'roadmap') {
+                    setRoadmapAIExplanation(assistantMsgContent);
+                  }
                 }
               } catch (e) {
                 logger.warn("Error parsing chunk", e);
@@ -432,7 +448,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         }
       } else {
         // Fallback generic chat
-        const res = await apiFetch("/videos/analyze", {
+        const res = await apiFetch("/api/videos/analyze", {
           method: "POST",
           body: JSON.stringify({
             urls: videoIds.map(id => `https://youtube.com/watch?v=${id}`),
@@ -466,8 +482,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         'learning_context': 'learning_context',
         'quiz': 'quiz',
         'roadmap': 'roadmap',
-        'mindmap': 'mind_map',
         'mind_map': 'mind_map',
+        'mindmap': 'mind_map',
         'mindmap_regenerate': 'mind_map',
         'flashcards': 'flashcards',
         'podcast': 'podcast',
@@ -478,19 +494,19 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       };
       
       const backendToolType = toolTypeMap[toolId];
-      if (!backendToolType) return;
+      if (!backendToolType) {
+        logger.warn(`No backend mapping for toolId: ${toolId}`);
+        return;
+      }
 
       const res = await analysisApi.generateTool(activeAnalysisId, backendToolType, append, force);
       if (res.ok) {
         const updatedAnalysis = await res.json();
         
-        setSummaryData(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            [backendToolType]: updatedAnalysis[backendToolType]
-          };
-        });
+        // Re-transform the entire analysis to ensure consistent naming (key_points -> keyPoints, etc)
+        const { summaryData: transformedSummary } = transformBackendAnalysis(updatedAnalysis);
+        
+        setSummaryData(transformedSummary);
         
         toast.success(force ? `Mind Map regenerated!` : (append ? `Generated more ${toolId}!` : `${toolId.charAt(0).toUpperCase() + toolId.slice(1)} generated!`));
         refreshHistory();
@@ -562,7 +578,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const handleAddToSpace = useCallback(async (spaceId: string) => {
     if (!videoIds.length || !activeAnalysisId) return;
     try {
-      const res = await apiFetch(`/spaces/${spaceId}/videos`, {
+      const res = await apiFetch(`/api/spaces/${spaceId}/videos`, {
         method: "POST",
         body: JSON.stringify({ video_id: activeAnalysisId }),
       });
@@ -583,7 +599,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setTranscript(null); 
     setSummaryData(null);
     try {
-      const res = await apiFetch(`/analysis/${id}`);
+      const res = await apiFetch(`/api/analysis/${id}`);
       if (res.ok) {
         const data = await res.json();
 

@@ -29,7 +29,7 @@ export function BottomNav({ onViewChange, activeView, className }: BottomNavProp
       <motion.div 
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[32px] p-2 flex items-center justify-between shadow-2xl shadow-black/20"
+        className="bg-primary/80 backdrop-blur-2xl border border-primary-foreground/10 rounded-[32px] p-2 flex items-center justify-between shadow-2xl shadow-primary/20"
       >
         {navItems.map((item) => {
           const isActive = currentPath === item.path;
@@ -45,11 +45,11 @@ export function BottomNav({ onViewChange, activeView, className }: BottomNavProp
               >
                 <div className={cn(
                   "w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300",
-                  "text-gray-400 group-active:scale-95"
+                  "text-primary-foreground/50 group-active:scale-95"
                 )}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <span className="text-[8px] font-black uppercase tracking-widest mt-1 transition-all text-gray-500 opacity-60">
+                <span className="text-[8px] font-black uppercase tracking-widest mt-1 transition-all text-primary-foreground/40">
                   {item.label}
                 </span>
               </button>
@@ -65,20 +65,20 @@ export function BottomNav({ onViewChange, activeView, className }: BottomNavProp
             >
               <div className={cn(
                 "w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300",
-                isActive ? "bg-white text-black scale-110 shadow-lg" : "text-gray-400 group-active:scale-95"
+                isActive ? "bg-primary-foreground text-primary scale-110 shadow-lg" : "text-primary-foreground/50 group-active:scale-95"
               )}>
                 <Icon className="h-5 w-5" />
               </div>
               <span className={cn(
                 "text-[8px] font-black uppercase tracking-widest mt-1 transition-all",
-                isActive ? "text-white opacity-100" : "text-gray-500 opacity-60"
+                isActive ? "text-primary-foreground opacity-100" : "text-primary-foreground/40"
               )}>
                 {item.label}
               </span>
               {isActive && (
                 <motion.div 
                   layoutId="activeTab"
-                  className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"
+                  className="absolute -bottom-1 w-1 h-1 bg-primary-foreground rounded-full"
                 />
               )}
             </Link>

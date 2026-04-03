@@ -33,7 +33,8 @@ import {
   Wallet,
   Bell,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  AlertCircle
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
@@ -125,6 +126,7 @@ const Index = () => {
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [estimatedRemaining, setEstimatedRemaining] = useState<number | null>(null);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [isVideoMinimized, setIsVideoMinimized] = useState(false);
@@ -143,6 +145,7 @@ const Index = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [generatingTools, setGeneratingTools] = useState<string[]>([]);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
 
   const fetchTransactions = async () => {
     try {
@@ -395,7 +398,7 @@ const Index = () => {
     try {
       if (activeAnalysisId) {
         // Use streaming RAG chat endpoint
-        const response = await fetch(`${API_BASE_URL}/chat/${activeAnalysisId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/chat/${activeAnalysisId}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -447,7 +450,7 @@ const Index = () => {
         }
       } else {
         // Fallback or generic chat (non-streaming for now)
-        const responseData = await apiFetch("/videos/analyze", {
+        const responseData = await apiFetch("/api/videos/analyze", {
           method: "POST",
           body: JSON.stringify({
             urls: videoIds.map(id => `https://youtube.com/watch?v=${id}`),
@@ -480,7 +483,7 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      const res = await apiFetch("/videos/analyze", {
+      const res = await apiFetch("/api/videos/analyze", {
         method: "POST",
         body: JSON.stringify({
           urls: ids.map(id => `https://youtube.com/watch?v=${id}`),
@@ -557,6 +560,9 @@ const Index = () => {
         if (statusData.progress_percentage !== undefined) {
           setAnalysisProgress(statusData.progress_percentage);
         }
+        if (statusData.status_message !== undefined) {
+          setStatusMessage(statusData.status_message);
+        }
         if (statusData.estimated_remaining_seconds !== undefined) {
           setEstimatedRemaining(statusData.estimated_remaining_seconds);
         }
@@ -567,10 +573,18 @@ const Index = () => {
           completed = true;
           setAnalysisProgress(100);
         } else if (statusData.status === "failed") {
-          throw new Error(statusData.error || "Analysis task failed");
+          setAnalysisStatus("failed");
+          const errorMsg = statusData.error || "Analysis task failed";
+          toast.error(errorMsg);
+          setStatusMessage(`Failed: ${errorMsg}`);
+          completed = true; // Stop polling immediately
+          throw new Error(errorMsg);
         }
-      } catch (e) {
+      } catch (e: any) {
         logger.warn("Polling attempt failed:", e);
+        if (e.message?.includes("failed")) {
+          completed = true; // Stop polling on definitive failure
+        }
       }
     }
 
@@ -954,7 +968,7 @@ const Index = () => {
   };
 
   return (
-    <div className="flex bg-white h-screen overflow-hidden text-foreground">
+    <div className="flex bg-background min-h-screen h-screen overflow-hidden text-foreground">
       {/* Sidebar - hidden on mobile unless toggled, always visible on desktop unless focus mode */}
       <AnimatePresence>
         {!isFocusMode && (
@@ -1016,11 +1030,10 @@ const Index = () => {
       
       {/* ... Feedback Dialog ... */}
       <Dialog open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen}>
-        {/* ... Feedback Dialog Content ... */}
-        <DialogContent className="rounded-3xl border-gray-100 shadow-2xl">
+        <DialogContent className="rounded-3xl border-border bg-card shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Send Feedback</DialogTitle>
-            <DialogDescription className="text-sm font-medium text-gray-500">
+            <DialogTitle className="text-xl font-bold text-foreground">Send Feedback</DialogTitle>
+            <DialogDescription className="text-sm font-medium text-muted-foreground">
               Help us improve YouLearn. What's on your mind?
             </DialogDescription>
           </DialogHeader>
@@ -1028,19 +1041,19 @@ const Index = () => {
             value={feedbackText}
             onChange={(e) => setFeedbackText(e.target.value)}
             placeholder="I love the synthesis mode but..." 
-            className="min-h-[120px] rounded-2xl border-gray-100 focus:ring-1 focus:ring-black"
+            className="min-h-[120px] rounded-2xl border-border bg-secondary/50 focus:ring-1 focus:ring-primary"
           />
           <DialogFooter>
-            <Button onClick={submitFeedback} className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white">Send</Button>
+            <Button onClick={submitFeedback} className="rounded-xl font-semibold text-sm h-10 px-6 bg-primary text-primary-foreground hover:bg-primary/90">Send</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isProfileUpdateOpen} onOpenChange={setIsProfileUpdateOpen}>
-        <DialogContent className="rounded-3xl border-gray-100 shadow-2xl max-w-sm">
+        <DialogContent className="rounded-3xl border-border bg-card shadow-2xl max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Update Profile</DialogTitle>
-            <DialogDescription className="text-xs font-medium text-gray-500">
+            <DialogTitle className="text-xl font-bold text-foreground">Update Profile</DialogTitle>
+            <DialogDescription className="text-xs font-medium text-muted-foreground">
               Change your display name below.
             </DialogDescription>
           </DialogHeader>
@@ -1049,40 +1062,40 @@ const Index = () => {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Full Name"
-              className="rounded-2xl border-gray-100 focus:ring-1 focus:ring-black h-12 px-4 font-medium"
+              className="rounded-2xl border-border bg-secondary/50 focus:ring-1 focus:ring-primary h-12 px-4 font-medium"
             />
           </div>
           <DialogFooter className="flex gap-2">
-            <Button onClick={handleUpdateProfile} className="rounded-xl flex-1 font-semibold text-sm bg-black text-white px-8">Save</Button>
+            <Button onClick={handleUpdateProfile} className="rounded-xl flex-1 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 px-8">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
-        <DialogContent className="rounded-[2.5rem] border-gray-100 shadow-2xl max-w-2xl p-0 overflow-hidden bg-white">
-          <DialogTitle className="sr-only">Top Up Credits</DialogTitle>
+        <DialogContent className="rounded-[2.5rem] border-border shadow-2xl max-w-2xl p-0 overflow-hidden bg-card">
+          <DialogTitle className="sr-only text-foreground">Top Up Credits</DialogTitle>
           <div className="grid grid-cols-1 md:grid-cols-2">
-            <div className="p-8 md:p-10 bg-gray-50/50 border-r border-gray-100">
-               <div className="flex items-center gap-2 mb-6 text-black">
-                 <div className="p-2 bg-black rounded-xl">
-                   <Coins className="h-5 w-5 text-white" />
+            <div className="p-8 md:p-10 bg-secondary/30 border-r border-border">
+               <div className="flex items-center gap-2 mb-6 text-foreground">
+                 <div className="p-2 bg-primary rounded-xl">
+                   <Coins className="h-5 w-5 text-primary-foreground" />
                  </div>
                  <span className="text-sm font-bold">Top Up Credits</span>
                </div>
-               <h2 className="text-3xl font-bold tracking-tight leading-none mb-4">Fuel Your Learning.</h2>
-               <p className="text-sm font-medium text-gray-500 mb-8 max-w-[240px]">Get access to more deep-dives, podcast synthesis, and advanced AI models.</p>
+               <h2 className="text-3xl font-bold tracking-tight leading-none mb-4 text-foreground">Fuel Your Learning.</h2>
+               <p className="text-sm font-medium text-muted-foreground mb-8 max-w-[240px]">Get access to more deep-dives, podcast synthesis, and advanced AI models.</p>
                
                <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
-                    <div className="h-1 w-1 rounded-full bg-black" />
+                  <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                    <div className="h-1 w-1 rounded-full bg-primary" />
                     Unlimited Transcript Extraction
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
-                    <div className="h-1 w-1 rounded-full bg-black" />
+                  <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                    <div className="h-1 w-1 rounded-full bg-primary" />
                     Advanced AI Reasoning Models
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-medium text-gray-500">
-                    <div className="h-1 w-1 rounded-full bg-black" />
+                  <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                    <div className="h-1 w-1 rounded-full bg-primary" />
                     Export to PDF, MD, & Notion
                   </div>
                </div>
@@ -1091,29 +1104,29 @@ const Index = () => {
             <div className="p-8 md:p-10 space-y-6">
                <button 
                  onClick={() => handlePayment("starter")}
-                 className="w-full group relative p-6 bg-white border border-gray-100 rounded-[2rem] text-left hover:border-black hover:shadow-xl transition-all"
+                 className="w-full group relative p-6 bg-card border border-border rounded-[2rem] text-left hover:border-primary hover:shadow-xl transition-all"
                >
                  <div className="flex justify-between items-start mb-2">
-                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 group-hover:text-black">Starter</span>
-                   <span className="text-2xl font-bold">₹499</span>
+                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-primary">Starter</span>
+                   <span className="text-2xl font-bold text-foreground">₹499</span>
                  </div>
-                 <h3 className="text-xl font-bold mb-1">500 Credits</h3>
-                 <p className="text-[10px] font-bold text-gray-400 group-hover:text-gray-500 transition-colors">Perfect for occasional researchers.</p>
+                 <h3 className="text-xl font-bold mb-1 text-foreground">500 Credits</h3>
+                 <p className="text-[10px] font-bold text-muted-foreground group-hover:text-muted-foreground/80 transition-colors">Perfect for occasional researchers.</p>
                </button>
 
                <button 
                  onClick={() => handlePayment("pro")}
-                 className="w-full group relative p-6 bg-black text-white border border-black rounded-[2rem] text-left hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] transition-all overflow-hidden"
+                 className="w-full group relative p-6 bg-primary text-primary-foreground border border-primary rounded-[2rem] text-left hover:shadow-[0_20px_40px_rgba(var(--primary-rgb),0.2)] transition-all overflow-hidden"
                >
-                 <div className="absolute top-4 right-4 px-2 py-0.5 bg-white/20 rounded-full text-[9px] font-semibold uppercase backdrop-blur-md">Best Value</div>
+                 <div className="absolute top-4 right-4 px-2 py-0.5 bg-background/20 rounded-full text-[9px] font-semibold uppercase backdrop-blur-md">Best Value</div>
                  <div className="flex justify-between items-start mb-2">
-                   <span className="text-xs font-semibold uppercase tracking-wider text-white/50">Pro Miner</span>
+                   <span className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/50">Pro Miner</span>
                    <span className="text-2xl font-bold">₹1499</span>
                  </div>
                  <h3 className="text-xl font-bold mb-1">2000 Credits</h3>
-                 <p className="text-[10px] font-bold text-white/40 group-hover:text-white/60 transition-colors">For serious learners and power users.</p>
+                 <p className="text-[10px] font-bold text-primary-foreground/40 group-hover:text-primary-foreground/60 transition-colors">For serious learners and power users.</p>
                </button>
-       <p className="text-[10px] font-medium text-center text-gray-400 px-4">Secure payment via Razorpay. Credits expire 12 months from purchase.</p>
+        <p className="text-[10px] font-medium text-center text-muted-foreground px-4">Secure payment via Razorpay. Credits expire 12 months from purchase.</p>
             </div>
           </div>
         </DialogContent>
@@ -1122,15 +1135,15 @@ const Index = () => {
       {/* Delete Space Confirmation */}
       {/* Settings Modal */}
       <Dialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen}>
-        <DialogContent className="max-w-4xl p-0 border-none bg-gray-50/50 backdrop-blur-xl overflow-hidden rounded-[40px] shadow-2xl">
+        <DialogContent className="max-w-4xl p-0 border-none bg-background/50 backdrop-blur-xl overflow-hidden rounded-[40px] shadow-2xl">
           <div className="flex flex-col lg:flex-row h-[600px]">
             {/* Sidebar */}
-            <div className="w-full lg:w-64 bg-white border-r border-gray-100 p-8 flex flex-col gap-8">
+            <div className="w-full lg:w-64 bg-card border-r border-border p-8 flex flex-col gap-8">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-black flex items-center justify-center">
-                  <Settings className="h-5 w-5 text-white" />
+                <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center">
+                  <Settings className="h-5 w-5 text-primary-foreground" />
                 </div>
-                <h2 className="text-xl font-bold">Settings</h2>
+                <h2 className="text-xl font-bold text-foreground">Settings</h2>
               </div>
               
               <nav className="flex flex-col gap-1">
@@ -1145,8 +1158,8 @@ const Index = () => {
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all",
                       settingsTab === tab.id 
-                        ? "bg-black text-white shadow-lg shadow-black/10" 
-                        : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/10" 
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     )}
                   >
                     <tab.icon className="h-4 w-4" />
@@ -1155,13 +1168,13 @@ const Index = () => {
                 ))}
               </nav>
 
-              <div className="mt-auto pt-8 border-t border-gray-100">
+              <div className="mt-auto pt-8 border-t border-border">
                 <button 
                   onClick={() => {
                     handleLogout();
                     setIsSettingsModalOpen(false);
                   }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-red-500 hover:bg-red-50 transition-all w-full text-left"
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-destructive hover:bg-destructive/10 transition-all w-full text-left"
                 >
                   <LogOut className="h-4 w-4" />
                   Sign Out
@@ -1181,40 +1194,40 @@ const Index = () => {
                     className="space-y-8"
                   >
                     <div className="flex items-center gap-6">
-                      <Avatar className="h-24 w-24 rounded-[32px] border-4 border-white shadow-xl">
+                      <Avatar className="h-24 w-24 rounded-[32px] border-4 border-background shadow-xl">
                         <AvatarImage src={user.avatar_url} />
-                        <AvatarFallback className="bg-black text-white text-3xl font-black">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-3xl font-black">
                           {user.name?.charAt(0) || 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <h3 className="text-2xl font-black text-black">{user.name}</h3>
-                        <p className="text-sm font-medium text-gray-400">{user.email}</p>
+                        <h3 className="text-2xl font-black text-foreground">{user.name}</h3>
+                        <p className="text-sm font-medium text-muted-foreground">{user.email}</p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Full Name</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Full Name</label>
                         <Input 
                           value={newName} 
                           onChange={(e) => setNewName(e.target.value)}
-                          className="h-14 rounded-2xl border-gray-100 px-6 font-bold focus:ring-black" 
+                          className="h-14 rounded-2xl border-border bg-secondary/50 px-6 font-bold focus:ring-primary h-14" 
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Email Address</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Email Address</label>
                         <Input 
                           value={user.email} 
                           disabled
-                          className="h-14 rounded-2xl border-gray-100 px-6 font-bold bg-gray-50/50 text-gray-400" 
+                          className="h-14 rounded-2xl border-border px-6 font-bold bg-secondary/30 text-muted-foreground opacity-50 cursor-not-allowed" 
                         />
                       </div>
                     </div>
 
                     <div className="space-y-6 pt-4">
                       <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Cognitive Expertise</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Cognitive Expertise</label>
                         <div className="flex gap-3">
                           {['Beginner', 'Intermediate', 'Expert'].map((level) => (
                             <button
@@ -1223,28 +1236,35 @@ const Index = () => {
                               className={cn(
                                 "flex-1 px-4 py-3 rounded-2xl text-xs font-bold transition-all border-2",
                                 expertise === level 
-                                  ? "bg-black text-white border-black shadow-lg shadow-black/10" 
-                                  : "bg-white text-gray-400 border-gray-100 hover:border-gray-200"
+                                  ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/10" 
+                                  : "bg-background text-muted-foreground border-border hover:border-primary/50"
                               )}
                             >
                               {level}
                             </button>
                           ))}
                         </div>
-                        <p className="text-[10px] text-gray-400 font-medium ml-1">Adjusts the depth of synthesis and study tools.</p>
+                        <p className="text-[10px] text-muted-foreground font-medium ml-1">Adjusts the depth of synthesis and study tools.</p>
                       </div>
 
                       <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Platform Theme</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Platform Theme</label>
                         <div className="flex gap-3">
-                          {['Light', 'Dark', 'System'].map((t) => (
+                           {['Light', 'Dark', 'System'].map((t) => (
                             <button
                               key={t}
+                              onClick={() => {
+                                if (t === 'Dark') document.documentElement.classList.add('dark');
+                                else if (t === 'Light') document.documentElement.classList.remove('dark');
+                                // 'System' could be handled with a media query listener
+                                toast.success(`Theme set to ${t}`);
+                              }}
                               className={cn(
                                 "flex-1 px-4 py-3 rounded-2xl text-xs font-bold transition-all border-2",
-                                t === 'Light' 
-                                  ? "bg-black text-white border-black shadow-lg shadow-black/10" 
-                                  : "bg-white text-gray-400 border-gray-100 opacity-50 cursor-not-allowed"
+                                (t === 'Dark' && document.documentElement.classList.contains('dark')) || 
+                                (t === 'Light' && !document.documentElement.classList.contains('dark'))
+                                  ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/10" 
+                                  : "bg-card text-muted-foreground border-border hover:border-primary/50"
                               )}
                             >
                               {t}
@@ -1258,7 +1278,7 @@ const Index = () => {
                       <Button 
                         onClick={handleUpdateProfile}
                         disabled={isLoading || newName === user.name}
-                        className="h-14 px-10 rounded-[24px] bg-black text-white hover:bg-gray-900 shadow-xl shadow-black/10 font-bold"
+                        className="h-14 px-10 rounded-[24px] bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl shadow-primary/10 font-bold"
                       >
                         Save Changes
                       </Button>
@@ -1274,46 +1294,46 @@ const Index = () => {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-10"
                   >
-                    <div className="bg-black text-white p-10 rounded-[40px] shadow-2xl shadow-black/20 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-500" />
+                    <div className="bg-primary text-primary-foreground p-10 rounded-[40px] shadow-2xl shadow-primary/20 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-background/10 rounded-full blur-3xl group-hover:bg-background/20 transition-all duration-500" />
                       <div className="relative z-10">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-4 block">Total Balance</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-foreground/40 mb-4 block">Total Balance</span>
                         <div className="flex items-end gap-3">
                           <Coins className="h-10 w-10 text-amber-400 fill-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.3)]" />
                           <h4 className="text-6xl font-black">{credits ?? 0}</h4>
-                          <span className="text-lg font-bold text-white/40 mb-2">Credits</span>
+                          <span className="text-lg font-bold text-primary-foreground/40 mb-2">Credits</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="p-8 rounded-[32px] border border-gray-100 bg-white hover:shadow-xl hover:shadow-black/5 transition-all">
-                        <h5 className="font-black text-lg mb-2">Standard Plan</h5>
-                        <p className="text-sm font-medium text-gray-400 mb-6">Perfect for occasional learning and research.</p>
+                      <div className="p-8 rounded-[32px] border border-border bg-card hover:shadow-xl hover:shadow-primary/5 transition-all">
+                        <h5 className="font-black text-lg mb-2 text-foreground">Standard Plan</h5>
+                        <p className="text-sm font-medium text-muted-foreground mb-6">Perfect for occasional learning and research.</p>
                         <ul className="space-y-3 mb-8">
                            {['60 mins analysis / day', 'Basic study tools', 'Email support'].map(f => (
-                             <li key={f} className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                               <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                             <li key={f} className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                {f}
                              </li>
                            ))}
                         </ul>
-                        <Button className="w-full h-12 rounded-xl bg-gray-50 text-gray-400 font-bold uppercase tracking-widest text-[10px] cursor-not-allowed">Current Plan</Button>
+                        <Button className="w-full h-12 rounded-xl bg-secondary text-muted-foreground font-bold uppercase tracking-widest text-[10px] cursor-not-allowed">Current Plan</Button>
                       </div>
 
-                      <div className="p-8 rounded-[32px] border-2 border-black bg-white shadow-2xl shadow-black/5 relative group">
-                        <div className="absolute -top-3 right-8 bg-black text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Growth</div>
-                        <h5 className="font-black text-lg mb-2">Pro Access</h5>
-                        <p className="text-sm font-medium text-gray-400 mb-6">Unlimited synthesis and advanced cognitive mapping.</p>
+                      <div className="p-8 rounded-[32px] border-2 border-primary bg-card shadow-2xl shadow-primary/5 relative group">
+                        <div className="absolute -top-3 right-8 bg-primary text-primary-foreground px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Growth</div>
+                        <h5 className="font-black text-lg mb-2 text-foreground">Pro Access</h5>
+                        <p className="text-sm font-medium text-muted-foreground mb-6">Unlimited synthesis and advanced cognitive mapping.</p>
                         <ul className="space-y-3 mb-8">
                            {['Unlimited analysis', 'All study sets & tools', 'Priority support', 'Early access'].map(f => (
-                             <li key={f} className="flex items-center gap-2 text-xs font-bold text-gray-800">
-                               <div className="w-1.5 h-1.5 rounded-full bg-black" />
+                             <li key={f} className="flex items-center gap-2 text-xs font-bold text-foreground">
+                               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                {f}
                              </li>
                            ))}
                         </ul>
-                        <Button onClick={() => setIsTopUpOpen(true)} className="w-full h-12 rounded-xl bg-black text-white hover:bg-gray-900 font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-black/20">Upgrade Now</Button>
+                        <Button onClick={() => setIsTopUpOpen(true)} className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20">Upgrade Now</Button>
                       </div>
                     </div>
                   </motion.div>
@@ -1327,12 +1347,12 @@ const Index = () => {
                     exit={{ opacity: 0, x: -20 }}
                     className="flex flex-col items-center justify-center h-full text-center space-y-6"
                   >
-                    <div className="w-20 h-20 bg-gray-50 rounded-[28px] flex items-center justify-center border border-gray-100">
-                      <Bell className="h-10 w-10 text-gray-200" />
+                    <div className="w-20 h-20 bg-secondary rounded-[28px] flex items-center justify-center border border-border">
+                      <Bell className="h-10 w-10 text-muted-foreground/20" />
                     </div>
                     <div>
-                      <h4 className="text-xl font-black mb-2">Coming Soon</h4>
-                      <p className="text-sm font-medium text-gray-400 max-w-[280px]">We're building a smarter notification system to keep you updated on your learning progress.</p>
+                      <h4 className="text-xl font-black mb-2 text-foreground">Coming Soon</h4>
+                      <p className="text-sm font-medium text-muted-foreground max-w-[280px]">We're building a smarter notification system to keep you updated on your learning progress.</p>
                     </div>
                   </motion.div>
                 )}
@@ -1342,46 +1362,46 @@ const Index = () => {
         </DialogContent>
       </Dialog>
       <Dialog open={!!deleteSpaceConfirmId} onOpenChange={() => setDeleteSpaceConfirmId(null)}>
-        <DialogContent className="rounded-2xl max-w-sm">
+        <DialogContent className="rounded-2xl max-w-sm border-border bg-card shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Delete Space</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this space? This action cannot be undone.
+            <DialogTitle className="text-foreground">Delete Space</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Are you sure you want to delete this space? All associated notes and links will be permanently removed.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setDeleteSpaceConfirmId(null)} className="flex-1 rounded-lg">Cancel</Button>
-            <Button variant="destructive" onClick={confirmDeleteSpace} className="flex-1 rounded-lg">Delete</Button>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setDeleteSpaceConfirmId(null)} className="flex-1 rounded-lg hover:bg-secondary text-muted-foreground">Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteSpace} className="flex-1 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       {/* Search Modal */}
       <Dialog open={isSearchModalOpen} onOpenChange={setIsSearchModalOpen}>
-        <DialogContent className="rounded-[32px] max-w-2xl p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-white">
-            <div className="flex items-center px-6 h-20 border-b border-gray-50 gap-4">
-              <Search className="h-6 w-6 text-gray-400" />
+        <DialogContent className="rounded-[32px] max-w-2xl p-0 overflow-hidden border-border bg-card shadow-2xl">
+          <div className="bg-card">
+            <div className="flex items-center px-6 h-20 border-b border-border gap-4">
+              <Search className="h-6 w-6 text-muted-foreground" />
               <input 
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search in Library"
-                className="flex-1 bg-transparent text-xl focus:outline-none placeholder:text-gray-300 font-medium"
+                className="flex-1 bg-transparent text-xl focus:outline-none placeholder:text-muted-foreground/30 font-medium text-foreground"
               />
-              <div className="px-2 py-1 bg-gray-50 rounded-lg border border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">ESC</div>
+              <div className="px-2 py-1 bg-secondary rounded-lg border border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">ESC</div>
             </div>
             
             <div className="max-h-[60vh] overflow-y-auto p-4 scrollbar-thin">
               {searchQuery.trim() === "" ? (
                 <div className="py-12 text-center">
-                  <p className="text-sm font-bold text-gray-400">Search for videos, spaces or topics</p>
+                  <p className="text-sm font-bold text-muted-foreground">Search for videos, spaces or topics</p>
                   <div className="flex items-center justify-center gap-6 mt-6">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                       <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                       <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                        Videos
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                       <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                       <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                        Spaces
                     </div>
                   </div>
@@ -1389,12 +1409,12 @@ const Index = () => {
               ) : (
                 <div className="space-y-6">
                   {isSearchLoading ? (
-                    <div className="py-12 text-center">
-                       <p className="text-sm font-bold text-gray-400">Searching...</p>
+                    <div className="py-12 text-center text-muted-foreground font-bold">
+                       <p className="animate-pulse">Searching...</p>
                     </div>
                   ) : searchResults.length > 0 ? (
                     <div>
-                       <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] px-3 mb-3">Found in Library</h4>
+                       <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] px-3 mb-3 opacity-50">Found in Library</h4>
                        <div className="space-y-1">
                          {searchResults.map(result => (
                            <button 
@@ -1406,54 +1426,53 @@ const Index = () => {
                                    title: result.title,
                                    videoIds: [result.platform_id || result.video_id || result.id],
                                    date: new Date().toISOString(),
-                                   // Dummy fields to satisfy type if needed, or better to update type
                                    status: "ready"
                                  } as any);
                                }
                                setIsSearchModalOpen(false);
                                setSearchQuery("");
                              }}
-                             className="w-full flex items-center gap-4 p-3 hover:bg-gray-50 rounded-[20px] transition-all group text-left"
+                             className="w-full flex items-center gap-4 p-3 hover:bg-secondary rounded-[20px] transition-all group text-left"
                            >
-                             <div className="w-16 h-10 bg-gray-100 rounded-xl overflow-hidden shrink-0 border border-gray-50">
+                             <div className="w-16 h-10 bg-secondary rounded-xl overflow-hidden shrink-0 border border-border">
                                {result.thumbnail ? (
                                  <img src={result.thumbnail} alt="" className="w-full h-full object-cover" />
                                ) : (
-                                 <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                                   <Search className="h-4 w-4 text-gray-200" />
+                                 <div className="w-full h-full flex items-center justify-center bg-secondary">
+                                   <Search className="h-4 w-4 text-muted-foreground" />
                                  </div>
                                )}
                              </div>
                              <div className="min-w-0 flex-1">
-                               <p className="text-sm font-bold truncate group-hover:text-black transition-colors">{result.title}</p>
+                               <p className="text-sm font-bold truncate text-foreground group-hover:text-primary transition-colors">{result.title}</p>
                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold truncate block">{result.subtitle}</span>
                              </div>
-                             <ArrowRight className="h-4 w-4 text-gray-200 group-hover:text-black transition-all" />
+                             <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-all" />
                            </button>
                          ))}
                        </div>
                     </div>
                   ) : (
                     <div className="py-12 text-center">
-                       <p className="text-sm font-bold text-gray-400">No results found for "{searchQuery}"</p>
+                       <p className="text-sm font-bold text-muted-foreground">No results found for "{searchQuery}"</p>
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <div className="p-4 bg-gray-50/50 border-t border-gray-50 flex items-center justify-between">
+            <div className="p-4 bg-secondary/50 border-t border-border flex items-center justify-between">
                <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1.5">
-                     <div className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[9px] font-bold text-gray-400">↑↓</div>
-                     <span className="text-[9px] font-bold text-gray-400 uppercase">Navigate</span>
+                     <div className="px-1.5 py-0.5 bg-background rounded border border-border text-[9px] font-bold text-muted-foreground">↑↓</div>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Navigate</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                     <div className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[9px] font-bold text-gray-400">ENTER</div>
-                     <span className="text-[9px] font-bold text-gray-400 uppercase">Open</span>
+                     <div className="px-1.5 py-0.5 bg-background rounded border border-border text-[9px] font-bold text-muted-foreground">ENTER</div>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">Open</span>
                   </div>
                </div>
-               <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">TubeBrain Search</p>
+               <p className="text-[9px] font-bold text-muted-foreground opacity-30 uppercase tracking-widest">TubeBrain Search</p>
             </div>
           </div>
         </DialogContent>
@@ -1482,131 +1501,93 @@ const Index = () => {
           )}
         </>
       )}
-      
-      <main id="main-content" role="main" aria-label="Main content" className={cn(
-        "flex-1 relative overflow-y-auto scrollbar-thin transition-all duration-700 ease-in-out",
-        isFocusMode && "bg-gray-50/30"
-      )}>
-        {/* Top Bar - Hide in Focus Mode */}
+
+      {/* Main Content Area */}
+      <main id="main-content" className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* Sticky Header */}
         <AnimatePresence>
           {!isFocusMode && (
-            <motion.div 
-              initial={{ y: -64, opacity: 0 }}
+            <motion.header
+              initial={{ y: -20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -64, opacity: 0 }}
-              transition={{ duration: 0.5, ease: "circOut" }}
-              className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-6 h-16 flex items-center justify-between"
+              className="h-16 flex items-center justify-between px-6 bg-background/80 backdrop-blur-xl border-b border-border sticky top-0 z-40 transition-all"
             >
-               <div className="flex items-center gap-4 min-w-0">
-                  <button 
-                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    className="p-2 hover:bg-gray-50 rounded-xl transition-all shrink-0 border border-transparent hover:border-gray-100"
-                  >
-                    <Menu className="h-5 w-5 text-gray-500" />
-                  </button>
-                  
-                  <div className="flex items-center gap-2 text-gray-300 mx-2 hidden md:flex">
-                     <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  className="p-2 hover:bg-secondary rounded-xl transition-all shrink-0 border border-transparent hover:border-border hidden md:block"
+                >
+                  <Menu className="h-5 w-5 text-muted-foreground" />
+                </button>
+                
+                <div className="flex items-center gap-2 text-muted-foreground/30 mx-2 hidden md:flex">
+                   <div className="w-1.5 h-1.5 rounded-full bg-border" />
+                </div>
+
+                {activeView === "analysis" && videoData ? (
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h1 className="text-sm font-bold text-foreground truncate max-w-[300px]">{videoData.title}</h1>
                   </div>
-
-                  {activeView === "analysis" && videoData ? (
-                    <div className="flex items-center gap-3 min-w-0">
-                      <h1 className="text-sm font-bold text-foreground truncate max-w-[300px]">{videoData.title}</h1>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 p-1 bg-gray-50/50 rounded-xl border border-gray-100">
-                       {(["Beginner", "Expert"] as const).map((level) => (
-                          <button
-                            key={level}
-                            onClick={() => setExpertise(level === "Beginner" ? "Beginner" : "Expert")}
-                            className={cn(
-                              "px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
-                              ((level === "Beginner" && expertise === "Beginner") || (level === "Expert" && expertise === "Expert")) 
-                                ? "bg-white text-black shadow-sm border border-gray-100" 
-                                : "text-gray-400 hover:text-gray-600"
-                            )}
-                          >
-                            {level}
-                          </button>
-                       ))}
-                    </div>
-                  )}
-               </div>
-               
-               <div className="flex items-center gap-3 shrink-0">
-                  <div className="hidden lg:flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsFocusMode(!isFocusMode)}
-                      className={cn(
-                        "rounded-xl h-9 px-4 text-xs font-bold uppercase tracking-wider transition-all gap-2",
-                        isFocusMode ? "bg-black text-white hover:bg-gray-900" : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100"
-                      )}
-                    >
-                      <GraduationCap className="h-4 w-4" />
-                      {isFocusMode ? "Exit Focus" : "Focus Mode"}
-                    </Button>
-
-                    {activeView === "analysis" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl h-9 px-4 text-xs font-bold uppercase tracking-wider border-gray-100 hover:bg-gray-50 gap-2"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        Share
-                      </Button>
-                    )}
+                ) : (
+                  <div className="flex items-center gap-1.5 p-1 bg-secondary/50 rounded-xl border border-border">
+                     {(["Beginner", "Expert"] as const).map((level) => (
+                        <button
+                          key={level}
+                          onClick={() => setExpertise(level === "Beginner" ? "Beginner" : "Expert")}
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
+                            ((level === "Beginner" && expertise === "Beginner") || (level === "Expert" && expertise === "Expert")) 
+                              ? "bg-card text-foreground shadow-sm border border-border" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {level}
+                        </button>
+                     ))}
                   </div>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-3">
+                 <div className="hidden lg:flex items-center gap-2">
+                   <Button
+                     variant="ghost"
+                     size="sm"
+                     onClick={() => setIsFocusMode(!isFocusMode)}
+                     className={cn(
+                       "rounded-xl h-9 px-4 text-xs font-bold uppercase tracking-wider transition-all gap-2",
+                       isFocusMode ? "bg-primary text-primary-foreground" : "bg-card text-foreground hover:bg-secondary border border-border"
+                     )}
+                   >
+                     <GraduationCap className="h-4 w-4" />
+                     Focus Mode
+                   </Button>
+                 </div>
 
-                  <div className="w-px h-4 bg-gray-100 mx-1 hidden sm:block" />
+                 <div className="w-px h-4 bg-border mx-1 hidden sm:block" />
 
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setIsTopUpOpen(true)}
-                    className="rounded-full h-9 px-5 text-xs font-bold uppercase tracking-wider bg-black text-white hover:bg-gray-900 shadow-lg shadow-black/5"
-                  >
-                    Upgrade
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                      toast.success("Link copied!");
-                    }}
-                    className="rounded-xl h-9 px-5 text-xs font-bold uppercase tracking-wider border-gray-100 hover:bg-gray-50"
-                  >
-                    Share
-                  </Button>
-               </div>
-            </motion.div>
+                 <Button
+                   variant="default"
+                   size="sm"
+                   onClick={() => setIsTopUpOpen(true)}
+                   className="rounded-xl h-9 px-5 text-xs font-bold uppercase tracking-wider bg-primary text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/5"
+                 >
+                   Upgrade
+                 </Button>
+                 
+                 <div className="relative group">
+                    <Avatar className="h-9 w-9 border-2 border-border group-hover:border-primary transition-all cursor-pointer">
+                       <AvatarImage src={user?.avatar_url} />
+                       <AvatarFallback className="bg-secondary text-[10px] font-bold">{user?.name?.slice(0, 2).toUpperCase() || "ME"}</AvatarFallback>
+                    </Avatar>
+                 </div>
+              </div>
+            </motion.header>
           )}
         </AnimatePresence>
 
-        {/* Floating Exit Focus Button */}
-        <AnimatePresence>
-          {isFocusMode && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: 20 }}
-              className="fixed top-8 left-1/2 -translate-x-1/2 z-[60]"
-            >
-              <Button
-                onClick={() => setIsFocusMode(false)}
-                className="rounded-full h-12 px-8 bg-black text-white shadow-2xl hover:bg-gray-900 font-black text-xs uppercase tracking-[0.2em] border border-white/20 backdrop-blur-sm group"
-              >
-                <X className="mr-2 h-4 w-4 group-hover:rotate-90 transition-transform duration-300" />
-                Exit Focus Mode
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
+        {/* Content Wrapper */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
         <AnimatePresence mode="wait">
           {activeView === "analysis" && videoData ? (
             <motion.div 
@@ -1633,8 +1614,8 @@ const Index = () => {
                     )}>
                       {/* Video Player Section */}
                       <div className={cn(
-                        "transition-all duration-500 ease-in-out origin-top relative group rounded-[40px] overflow-hidden shadow-2xl shadow-black/5 border border-gray-100",
-                        isVideoMinimized ? "h-0 opacity-0 mb-0" : "h-auto opacity-100"
+                        "transition-all duration-500 ease-in-out origin-top relative group rounded-[40px] overflow-hidden shadow-2xl shadow-foreground/5 border border-border",
+                        isVideoMinimized ? "h-0 opacity-0 mb-0" : "h-auto opacity-100 mb-8"
                       )}>
                         {!isVideoMinimized && (
                           <Button
@@ -1665,13 +1646,13 @@ const Index = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => setIsVideoMinimized(false)}
-                            className="w-full rounded-[24px] border border-gray-100 bg-white hover:bg-gray-50 transition-all font-bold uppercase tracking-widest text-[10px] h-12 gap-3"
+                            className="w-full rounded-[24px] border border-border bg-card hover:bg-secondary transition-all font-bold uppercase tracking-widest text-[10px] h-12 gap-3"
                           >
                             <Play className="h-4 w-4" /> Show Video Player
                           </Button>
                         </motion.div>
                       )}
-
+ 
                       {/* Content States: Loading, Summary, or Empty */}
                       <AnimatePresence mode="wait">
                         {isLoading || (activeAnalysisId && !summaryData) ? (
@@ -1682,14 +1663,14 @@ const Index = () => {
                             exit={{ opacity: 0, y: -20 }}
                             className="py-12"
                           >
-                            <div className="bg-gray-50/50 border border-gray-100 p-10 rounded-[40px] shadow-sm">
+                            <div className="bg-secondary/30 border border-border p-10 rounded-[40px] shadow-sm">
                               <div className="flex items-end justify-between mb-10">
                                  <div>
-                                   <h2 className="text-3xl font-bold mb-3">Synthesizing Knowledge</h2>
+                                   <h2 className="text-3xl font-bold mb-3 text-foreground">Synthesizing Knowledge</h2>
                                    <div className="flex items-center gap-3">
                                      <div className="flex items-center gap-2">
-                                       <div className={cn("h-2 w-2 rounded-full animate-pulse", analysisProgress < 30 ? "bg-amber-500" : analysisProgress < 70 ? "bg-blue-500" : "bg-green-500")} />
-                                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                       <div className={cn("h-2 w-2 rounded-full animate-pulse", analysisProgress < 30 ? "bg-amber-500" : analysisProgress < 70 ? "bg-blue-500" : "bg-emerald-500")} />
+                                       <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                                          {analysisProgress < 20 ? "Pre-processing" : 
                                           analysisProgress < 50 ? "Transcript Extraction" : 
                                           analysisProgress < 80 ? "AI Analysis" : 
@@ -1699,24 +1680,31 @@ const Index = () => {
                                    </div>
                                  </div>
                                  <div className="text-right">
-                                   <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Progress</p>
+                                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Progress</p>
                                    <div className="flex flex-col items-end">
-                                     <span className="text-5xl font-black leading-none text-black">{analysisProgress}%</span>
+                                   <div className="flex flex-col items-center">
+                                     <span className="text-5xl font-black leading-none text-foreground">{analysisProgress}%</span>
+                                     {statusMessage && (
+                                       <p className="text-[10px] font-extrabold text-primary uppercase tracking-[0.2em] mt-4 animate-pulse">
+                                         {statusMessage}
+                                       </p>
+                                     )}
+                                   </div>
                                    </div>
                                  </div>
                               </div>
-                              <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                                  <motion.div 
                                   initial={{ width: 0 }}
                                   animate={{ width: `${analysisProgress}%` }}
-                                  className="h-full bg-black transition-all duration-500"
+                                  className="h-full bg-primary transition-all duration-500"
                                  />
                               </div>
                               <div className="grid grid-cols-4 gap-2 mt-10">
                                  {[25, 50, 75, 100].map((step) => (
                                    <div key={step} className={cn(
                                      "h-1.5 rounded-full transition-colors duration-500",
-                                     analysisProgress >= step ? "bg-black" : "bg-gray-200"
+                                     analysisProgress >= step ? "bg-primary" : "bg-muted"
                                    )} />
                                  ))}
                               </div>
@@ -1725,7 +1713,47 @@ const Index = () => {
                               <LoadingSkeleton />
                             </div>
                           </motion.div>
-                        ) : summaryData ? (
+                        ) : analysisStatus === "failed" ? (
+                           <motion.div 
+                             key="error"
+                             initial={{ opacity: 0, scale: 0.95 }}
+                             animate={{ opacity: 1, scale: 1 }}
+                             exit={{ opacity: 0, scale: 1.05 }}
+                             className="py-12"
+                           >
+                             <div className="bg-destructive/5 border border-destructive/20 p-12 rounded-[40px] text-center shadow-2xl shadow-destructive/10">
+                               <div className="w-20 h-20 bg-destructive/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                                 <AlertCircle className="h-10 w-10 text-destructive" />
+                               </div>
+                               <h2 className="text-3xl font-bold mb-4 text-foreground">Analysis Failed</h2>
+                               <p className="text-muted-foreground text-sm font-medium mb-10 max-w-md mx-auto leading-relaxed">
+                                 {statusMessage?.replace("Failed: ", "") || "We encountered an unexpected error while processing this video. This might be due to a restricted video or a temporary service interruption."}
+                               </p>
+                               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                                 <Button 
+                                   variant="outline" 
+                                   onClick={() => {
+                                     setActiveView("dashboard");
+                                     setActiveAnalysisId(null);
+                                     setAnalysisStatus(null);
+                                   }}
+                                   className="rounded-2xl h-12 px-8 font-bold uppercase tracking-widest text-[10px] border-border hover:bg-secondary"
+                                 >
+                                   Back to Dashboard
+                                 </Button>
+                                 <Button 
+                                   onClick={() => {
+                                      // Re-trigger summarize for the same IDs
+                                      handleSubmit(videoIds);
+                                   }}
+                                   className="rounded-2xl h-12 px-8 font-bold uppercase tracking-widest text-[10px] bg-primary text-primary-foreground hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                                 >
+                                   Try Again
+                                 </Button>
+                               </div>
+                             </div>
+                           </motion.div>
+                         ) : summaryData ? (
                           <motion.div
                             key="summary"
                             initial={{ opacity: 0 }}
@@ -1740,6 +1768,8 @@ const Index = () => {
                               spaces={spaces}
                               onAddToSpace={handleAddToSpace}
                               currentTime={currentTime}
+                              isAutoScroll={isAutoScroll}
+                              setIsAutoScroll={setIsAutoScroll}
                             />
                           </motion.div>
                         ) : null}
@@ -1755,7 +1785,6 @@ const Index = () => {
                           hasFlashcards={!!summaryData?.flashcards}
                           hasRoadmap={!!summaryData?.roadmap}
                           hasMindMap={!!summaryData?.mind_map}
-                          isChatLoading={isChatLoading}
                           onGenerate={handleGenerateTool}
                           generatingTools={generatingTools}
                           sets={summaryData ? [
@@ -1797,10 +1826,10 @@ const Index = () => {
                           animate={{ y: 0 }} 
                           exit={{ y: "100%" }}
                           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[70vh] overflow-y-auto"
+                          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card rounded-t-3xl shadow-2xl max-h-[70vh] overflow-y-auto border-t border-border"
                         >
-                          <div className="p-1 flex justify-center">
-                            <div className="w-10 h-1 rounded-full bg-gray-200" />
+                          <div className="p-1 flex justify-center sticky top-0 bg-card z-10">
+                            <div className="w-10 h-1 rounded-full bg-border" />
                           </div>
                           <LearnTools 
                             onToolClick={(id, v) => { handleToolClick(id, v); setIsMobileLearnOpen(false); }}
@@ -1808,7 +1837,6 @@ const Index = () => {
                             hasFlashcards={!!summaryData?.flashcards?.length}
                             hasRoadmap={!!summaryData?.roadmap}
                             hasMindMap={!!summaryData?.mind_map?.nodes?.length}
-                            isChatLoading={isChatLoading}
                             sets={[
                               ...(summaryData?.quiz?.length ? [{ id: 'quiz-set', name: `Quiz (${summaryData.quiz.length} questions)`, date: 'Generated', type: 'quiz' }] : []),
                               ...(summaryData?.flashcards?.length ? [{ id: 'flashcard-set', name: `Flashcards (${summaryData.flashcards.length} cards)`, date: 'Generated', type: 'flashcards' }] : []),
@@ -1845,14 +1873,14 @@ const Index = () => {
 
               {!getAuthToken() ? (
                 <div className="text-center py-24">
-                  <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-gray-100">
-                    <UserIcon className="h-7 w-7 text-gray-200" />
+                  <div className="w-16 h-16 bg-secondary rounded-3xl flex items-center justify-center mx-auto mb-6 border border-border shadow-sm">
+                    <UserIcon className="h-7 w-7 text-muted-foreground/30" />
                   </div>
                   <h3 className="text-lg font-bold text-foreground mb-1">Sign in to continue</h3>
                   <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">
                     Log in to access your saved history, library, and learning spaces.
                   </p>
-                  <Button onClick={() => setActiveView("dashboard")} className="rounded-xl font-semibold text-sm h-10 px-6 bg-black text-white hover:bg-gray-900">Back to Search</Button>
+                  <Button onClick={() => setActiveView("dashboard")} className="rounded-xl font-semibold text-sm h-10 px-6">Back to Search</Button>
                 </div>
               ) : ((activeView === "history" && historyItems.length > 0) || 
                 (activeView === "library" && historyItems.some(h => spaces.some(s => s.videoIds.includes(h.videoIds[0])))) || 
@@ -1869,10 +1897,10 @@ const Index = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       onClick={() => handleLoadHistoryItem(item)}
-                      className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 hover:shadow-md transition-all text-left group"
+                      className="flex items-center justify-between p-4 bg-card border border-border rounded-2xl hover:border-primary/20 hover:shadow-lg hover:shadow-foreground/5 transition-all text-left group"
                     >
                       <div className="flex items-center gap-4 min-w-0">
-                         <div className="w-24 h-16 bg-gray-100 rounded-xl overflow-hidden shrink-0 border border-gray-50 relative">
+                         <div className="w-24 h-16 bg-muted rounded-xl overflow-hidden shrink-0 border border-border relative">
                             <img src={`https://img.youtube.com/vi/${item.videoIds[0]}/mqdefault.jpg`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             {item.status && item.status !== "completed" && (
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -1942,58 +1970,119 @@ const Index = () => {
           ) : (
             <motion.div 
               key="dashboard"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="pb-20"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="pb-32"
             >
+              <div className="absolute inset-0 bg-dot-pattern opacity-[0.03] pointer-events-none" />
+              
               {/* Hero Section */}
-              <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
-                <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">
-                  Ready to learn, {user?.name?.split(' ')[0] || 'stranger'}?
-                </h1>
+              <div className="max-w-4xl mx-auto px-6 pt-24 pb-12 text-center">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.8 }}
+                >
+                  <span className="inline-block px-4 py-1.5 mb-6 rounded-full bg-primary/5 text-primary text-[10px] font-black uppercase tracking-[0.2em] border border-primary/10">
+                    Your Personal Learning Accelerator
+                  </span>
+                  <h1 className="text-4xl md:text-7xl font-black tracking-tight text-foreground leading-[1.05] mb-6">
+                    Unlock Knowledge <br/>
+                    <span className="text-muted-foreground/40">In Seconds.</span>
+                  </h1>
+                  <p className="text-lg text-muted-foreground/60 max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
+                    Ready to learn, {user?.name?.split(' ')[0] || 'stranger'}? Paste any video link or upload a file to begin your deep-dive.
+                  </p>
+                </motion.div>
               </div>
 
               <UrlInput 
                 onSubmit={handleSubmit} 
                 isLoading={isLoading} 
-                onUploadComplete={(id) => toast.success(`Video uploaded (ID: ${id}). Analysis will begin shortly.`)} 
+                onUploadComplete={async (videoId, analysisId) => {
+                  if (!analysisId) return;
+                  setVideoIds([videoId]);
+                  setVideoData({
+                    title: "Processing Upload...",
+                    channel: "Upload",
+                    duration: "N/A",
+                    views: "N/A",
+                    likes: "N/A",
+                    published: new Date().toISOString()
+                  });
+                  setSummaryData(null);
+                  setTranscript(null);
+                  setMetadata(null);
+                  setActiveAnalysisId(analysisId);
+                  setAnalysisStatus("pending");
+                  setActiveView("analysis");
+                  
+                  // Refresh history so it shows "processing"
+                  setHistoryItems(await fetchHistory());
+
+                  const data = await pollAnalysis(analysisId, [videoId]);
+                  if (data) {
+                    toast.success("Analysis complete!");
+                  }
+                }} 
                 analysisStyle={analysisStyle}
                 onStyleChange={setAnalysisStyle}
               />
               
-              <div className="max-w-4xl mx-auto px-6 mt-12 space-y-12">
+              <div className="max-w-5xl mx-auto px-6 mt-20 space-y-20">
                  {/* Spaces Grid */}
                  <section>
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-bold">Spaces</h3>
-                      <button className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">View all</button>
+                    <div className="flex items-end justify-between mb-8 px-2">
+                      <div>
+                        <h3 className="text-2xl font-black text-foreground">Spaces</h3>
+                        <p className="text-xs font-medium text-muted-foreground mt-1">Organized collections of your best insights.</p>
+                      </div>
+                      <button 
+                        onClick={() => setActiveView("library")}
+                        className="text-xs font-bold text-primary hover:underline uppercase tracking-widest"
+                      >
+                        View all
+                      </button>
                     </div>
                     {spaces.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {spaces.slice(0, 6).map(space => (
-                          <button 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {spaces.slice(0, 6).map((space, i) => (
+                          <motion.button 
                             key={space.id} 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 + i * 0.05 }}
                             onClick={() => handleSidebarClick({ type: "Space", id: space.id, name: space.name })}
-                            className="flex flex-col p-5 bg-white border border-gray-100 rounded-[32px] hover:border-gray-200 hover:shadow-md transition-all text-left shadow-sm group aspect-square justify-between"
+                            className="group flex flex-col p-8 bg-card border border-border rounded-[40px] hover:border-primary hover:shadow-2xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden aspect-square"
                           >
-                            <div className="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors">
-                               <FolderOpen className="h-5 w-5" />
+                            <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-10 dark:group-hover:opacity-20 transition-opacity">
+                               <FolderOpen className="h-32 w-32 -mr-16 -mt-16 rotate-12" />
                             </div>
-                            <div>
-                              <span className="text-base font-bold block truncate">{space.name}</span>
-                              <span className="text-xs text-muted-foreground font-medium">{space.videoIds.length} items</span>
+                            
+                            <div className="w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center mb-auto group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500 group-hover:rotate-6">
+                               <FolderOpen className="h-6 w-6" />
                             </div>
-                          </button>
+                            
+                            <div className="relative z-10">
+                              <span className="text-xl font-black block truncate text-foreground mb-1">{space.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{space.videoIds.length} Materials</span>
+                                <div className="h-1 w-1 rounded-full bg-border" />
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active</span>
+                              </div>
+                            </div>
+                          </motion.button>
                         ))}
                       </div>
                     ) : (
-                      <div className="bg-gray-50/50 rounded-[40px] p-12 border border-dashed border-gray-200 text-center">
-                         <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
-                            <PlusCircle className="h-8 w-8 text-gray-200" />
+                      <div className="bg-secondary/20 rounded-[40px] p-12 border border-dashed border-border text-center">
+                         <div className="w-16 h-16 bg-card rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-border">
+                            <PlusCircle className="h-8 w-8 text-muted-foreground/30" />
                          </div>
-                         <p className="text-base font-bold text-gray-600">Create your first space</p>
-                         <p className="text-sm text-gray-400 mt-1">Organize your learning by topics</p>
+                         <p className="text-base font-bold text-foreground">Create your first space</p>
+                         <p className="text-sm text-muted-foreground mt-1">Organize your learning by topics</p>
                          <Button onClick={() => toast.info("Use the sidebar to create new spaces!")} variant="outline" className="mt-6 rounded-2xl font-bold text-sm h-10 px-6">Add Space</Button>
                       </div>
                     )}
@@ -2008,36 +2097,36 @@ const Index = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                        {historyItems.slice(0, 3).map((item) => (
                          <button 
-                           key={item.id} 
-                           onClick={() => handleLoadHistoryItem(item)}
-                           className="flex flex-col bg-white rounded-[32px] overflow-hidden hover:shadow-lg transition-all text-left group border border-gray-50 shadow-sm"
-                         >
-                            <div className="aspect-video w-full bg-gray-100 overflow-hidden relative">
-                               <img 
-                                 src={`https://img.youtube.com/vi/${item.videoIds[0]}/maxresdefault.jpg`} 
-                                 alt="" 
-                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                               />
-                               <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                            <div className="p-5">
-                               <p className="text-sm font-bold truncate group-hover:text-black transition-colors">{item.title}</p>
-                               <div className="flex items-center gap-2 mt-2">
-                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{getRelativeDate(item.date)}</span>
-                                 <span className="w-1 h-1 rounded-full bg-gray-200" />
-                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold truncate max-w-[100px]">{item.videoData?.channel}</span>
-                               </div>
-                            </div>
+                            key={item.id} 
+                            onClick={() => handleLoadHistoryItem(item)}
+                            className="flex flex-col bg-card rounded-[32px] overflow-hidden hover:shadow-lg transition-all text-left group border border-border shadow-sm"
+                          >
+                             <div className="aspect-video w-full bg-muted overflow-hidden relative">
+                                <img 
+                                  src={`https://img.youtube.com/vi/${item.videoIds[0]}/maxresdefault.jpg`} 
+                                  alt="" 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                />
+                                <div className="absolute inset-0 bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                             </div>
+                             <div className="p-5">
+                                <p className="text-sm font-bold truncate group-hover:text-primary transition-colors text-foreground">{item.title}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{getRelativeDate(item.date)}</span>
+                                  <span className="w-1 h-1 rounded-full bg-border" />
+                                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold truncate max-w-[100px]">{item.videoData?.channel}</span>
+                                </div>
+                             </div>
                          </button>
                        ))}
                        {historyItems.length === 0 && (
-                         <div className="col-span-full py-12 text-center bg-gray-50/50 rounded-[40px] border border-dashed border-gray-200">
-                            <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
-                               <HistoryIcon className="h-8 w-8 text-gray-200" />
-                            </div>
-                            <p className="text-base font-bold text-gray-400">No recent activity</p>
-                            <Button onClick={() => setActiveView("dashboard")} variant="link" className="mt-2 text-xs font-semibold text-gray-300">Start learning something new</Button>
-                         </div>
+                          <div className="col-span-full py-12 text-center bg-secondary/20 rounded-[40px] border border-dashed border-border">
+                             <div className="w-16 h-16 bg-card rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-border">
+                                <HistoryIcon className="h-8 w-8 text-muted-foreground/30" />
+                             </div>
+                             <p className="text-base font-bold text-muted-foreground">No recent activity</p>
+                             <Button onClick={() => setActiveView("dashboard")} variant="link" className="mt-2 text-xs font-semibold text-muted-foreground/50">Start learning something new</Button>
+                          </div>
                        )}
                     </div>
                  </section>
@@ -2045,6 +2134,7 @@ const Index = () => {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </main>
 
       {/* Mobile Bottom Navigation */}

@@ -1,3 +1,14 @@
+export interface Timestamp {
+  time: string;
+  label: string;
+}
+
+export interface LearningContext {
+  why: string;
+  whatToHowTo: string;
+  bestWay: string;
+}
+
 export interface VideoData {
   title: string;
   channel: string;
@@ -30,14 +41,14 @@ export interface SummaryData {
   keyPoints: string[];
   key_points?: string[]; // Backend alias
   takeaways: string[];
-  timestamps: { time: string; label: string }[];
+  timestamps: Timestamp[];
   tags: string[];
   quiz?: QuizQuestion[];
   roadmap?: { title: string; steps: RoadmapStep[] };
   mind_map?: MindMapData;
   flashcards?: { front: string; back: string; hint?: string }[];
   podcast?: { audioUrl?: string; script?: string };
-  learning_context?: { why: string; whatToHowTo: string; bestWay: string };
+  learning_context?: LearningContext;
   transcript_segments?: { start: number; end: number; text: string }[];
   glossary?: { term: string; definition: string }[];
   resources?: { name: string; url?: string; description?: string }[];
@@ -62,15 +73,36 @@ export interface HistoryItem {
   status: "pending" | "completed" | "failed" | "queued";
 }
 
+export interface DocumentData {
+  id: string;
+  title: string;
+  file_type: string;
+  file_size_bytes?: number;
+  status: "pending" | "processing" | "ready" | "failed";
+  createdAt: string;
+}
+
+export interface NoteData {
+  id: string;
+  title: string;
+  content: string;
+  space_id?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Space {
   id: string;
   name: string;
+  description?: string;
   videoIds: string[];
+  documentCount?: number;
+  noteCount?: number;
   createdAt: string;
 }
 
 import { apiFetch, getAuthToken } from "./api";
-import { STORAGE_KEYS, MAX_TRANSCRIPT_LENGTH, MAX_HISTORY_ITEMS, UUID_PATTERN } from "./constants";
+import { STORAGE_KEYS, MAX_TRANSCRIPT_LENGTH, MAX_HISTORY_ITEMS, UUID_PATTERN, API_BASE_URL } from "./constants";
 import { logger } from "./logger";
 import { transformBackendAnalysis, safeJSONParse } from "./transformers";
 
@@ -90,7 +122,7 @@ export const fetchHistory = async (): Promise<HistoryItem[]> => {
   if (!token) return [];
 
   try {
-    const res = await apiFetch("/analysis/");
+    const res = await apiFetch("/api/analysis/");
     if (res.ok) {
       const data = await res.json();
 
@@ -164,8 +196,11 @@ export const deleteHistory = async (id: string, backend_id?: string) => {
   localStorage.setItem(STORE.HISTORY, JSON.stringify(updatedHistory));
 
   const token = getAuthToken();
-  if (token && backend_id) {
-    apiFetch(`/analysis/${backend_id}`, { method: "DELETE" }).catch(console.error);
+  // History items from API use their backend UUID as the main 'id'
+  const targetId = backend_id || id;
+  
+  if (token && targetId) {
+    apiFetch(`/api/analysis/${targetId}`, { method: "DELETE" }).catch(console.error);
   }
 };
 
@@ -174,7 +209,7 @@ export const clearHistory = async () => {
   const token = getAuthToken();
   if (token) {
     try {
-      await apiFetch("/analysis/", { method: "DELETE" });
+      await apiFetch("/api/analysis/", { method: "DELETE" });
     } catch (e) {
       logger.error("Failed to clear history", e);
     }
@@ -192,13 +227,16 @@ export const fetchSpaces = async (): Promise<Space[]> => {
   if (!token) return [];
 
   try {
-    const res = await apiFetch("/spaces");
+    const res = await apiFetch("/api/spaces/");
     if (res.ok) {
       const data = await res.json();
       const backendSpaces = data.map((s: any) => ({
         id: s.id,
         name: s.name,
+        description: s.description,
         videoIds: s.video_ids || [],
+        documentCount: s.document_count || 0,
+        noteCount: s.note_count || 0,
         createdAt: s.created_at
       }));
       localStorage.setItem(STORE.SPACES, JSON.stringify(backendSpaces));
@@ -216,7 +254,7 @@ export const createSpace = async (name: string): Promise<Space | null> => {
 
   let backendSpace = null;
   try {
-    const res = await apiFetch("/spaces", {
+    const res = await apiFetch("/api/spaces/", {
       method: "POST",
       body: JSON.stringify({ name, description: "" })
     });
@@ -243,7 +281,7 @@ export const addVideoToSpace = async (spaceId: string, videoId: string) => {
   
   if (token) {
     try {
-      await apiFetch(`/spaces/${spaceId}/videos`, {
+      await apiFetch(`/api/spaces/${spaceId}/videos`, {
         method: "POST",
         body: JSON.stringify({ video_id: videoId })
       });
@@ -262,11 +300,31 @@ export const addVideoToSpace = async (spaceId: string, videoId: string) => {
   localStorage.setItem(STORE.SPACES, JSON.stringify(updatedSpaces));
 };
 
+export const removeVideoFromSpace = async (spaceId: string, videoId: string) => {
+  const token = getAuthToken();
+  if (token) {
+    try {
+      await apiFetch(`/api/spaces/${spaceId}/videos/${videoId}`, { method: "DELETE" });
+    } catch (e) {
+      logger.error("Failed to remove video from space", e);
+    }
+  }
+
+  const spaces = getSpaces();
+  const updatedSpaces = spaces.map((space) => {
+    if (space.id === spaceId) {
+      return { ...space, videoIds: space.videoIds.filter(id => id !== videoId) };
+    }
+    return space;
+  });
+  localStorage.setItem(STORE.SPACES, JSON.stringify(updatedSpaces));
+};
+
 export const renameSpace = async (id: string, name: string) => {
   const token = getAuthToken();
-  if (token && id.match(UUID_PATTERN)) {
+  if (token) {
     try {
-      await apiFetch(`/spaces/${id}`, {
+      await apiFetch(`/api/spaces/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ name })
       });
@@ -282,9 +340,9 @@ export const renameSpace = async (id: string, name: string) => {
 
 export const deleteSpace = async (id: string) => {
   const token = getAuthToken();
-  if (token && id.match(UUID_PATTERN)) {
+  if (token) {
     try {
-      await apiFetch(`/spaces/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/spaces/${id}`, { method: "DELETE" });
     } catch (e) {
       logger.error("Failed to delete space", e);
     }
@@ -293,4 +351,185 @@ export const deleteSpace = async (id: string) => {
   const spaces = getSpaces();
   const updatedSpaces = spaces.filter((space) => space.id !== id);
   localStorage.setItem(STORE.SPACES, JSON.stringify(updatedSpaces));
+};
+
+// ── DOCUMENTS ──
+
+export const uploadDocument = async (file: File): Promise<DocumentData | null> => {
+  const token = getAuthToken();
+  if (!token) return null;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await apiFetch("/api/documents/upload", {
+      method: "POST",
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        id: data.id,
+        title: data.title,
+        file_type: "pdf", // Placeholder, backend knows
+        status: data.status,
+        createdAt: new Date().toISOString()
+      };
+    }
+  } catch (e) {
+    logger.error("Failed to upload document", e);
+  }
+  return null;
+};
+
+export const fetchSpaceDocuments = async (spaceId: string): Promise<DocumentData[]> => {
+  try {
+    const res = await apiFetch(`/api/spaces/${spaceId}/documents`);
+    if (res.ok) {
+        const data = await res.json();
+        return data.map((d: any) => ({
+            id: d.id,
+            title: d.title,
+            file_type: d.file_type,
+            file_size_bytes: d.file_size_bytes,
+            status: d.status,
+            createdAt: d.created_at
+        }));
+    }
+  } catch (e) {
+    logger.error("Failed to fetch space documents", e);
+  }
+  return [];
+};
+
+export const addDocumentToSpace = async (spaceId: string, docId: string) => {
+    try {
+        await apiFetch(`/api/spaces/${spaceId}/documents/${docId}`, { method: "POST" });
+    } catch (e) {
+        logger.error("Failed to add document to space", e);
+    }
+};
+
+export const removeDocumentFromSpace = async (spaceId: string, docId: string) => {
+    try {
+        await apiFetch(`/api/spaces/${spaceId}/documents/${docId}`, { method: "DELETE" });
+    } catch (e) {
+        logger.error("Failed to remove document from space", e);
+    }
+};
+
+export const getDocumentUrl = (docId: string) => {
+    const token = getAuthToken();
+    return `${API_BASE_URL}/api/documents/${docId}/download?access_token=${token}`;
+};
+
+// ── NOTES ──
+
+export const fetchSpaceNotes = async (spaceId: string): Promise<NoteData[]> => {
+    try {
+        const res = await apiFetch(`/api/spaces/${spaceId}/notes`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.map((n: any) => ({
+                id: n.id,
+                title: n.title,
+                content: n.content,
+                space_id: n.space_id,
+                createdAt: n.created_at,
+                updatedAt: n.updated_at
+            }));
+        }
+    } catch (e) {
+        logger.error("Failed to fetch space notes", e);
+    }
+    return [];
+};
+
+export const createSpaceNote = async (spaceId: string, title: string, content: string): Promise<NoteData | null> => {
+    try {
+        const res = await apiFetch(`/api/spaces/${spaceId}/notes`, {
+            method: "POST",
+            body: JSON.stringify({ title, content })
+        });
+        if (res.ok) {
+            return await res.json();
+        }
+    } catch (e) {
+        logger.error("Failed to create space note", e);
+    }
+    return null;
+};
+
+export const deleteSpaceNote = async (spaceId: string, noteId: string) => {
+    try {
+        await apiFetch(`/api/spaces/${spaceId}/notes/${noteId}`, { method: "DELETE" });
+    } catch (e) {
+        logger.error("Failed to delete space note", e);
+    }
+};
+
+export const updateSpaceNote = async (spaceId: string, noteId: string, title: string, content: string): Promise<NoteData | null> => {
+    try {
+        const res = await apiFetch(`/api/spaces/${spaceId}/notes/${noteId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ title, content })
+        });
+        if (res.ok) {
+            return await res.json();
+        }
+    } catch (e) {
+        logger.error("Failed to update space note", e);
+    }
+    return null;
+};
+
+// ── SPACE CHAT ──
+
+export const sendSpaceChat = async (spaceId: string, message: string, onChunk: (chunk: string) => void) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/spaces/${spaceId}/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ message }),
+        });
+
+        if (!response.ok) throw new Error("Chat request failed");
+
+        const reader = response.body?.getReader();
+        if (!reader) return;
+
+        const decoder = new TextDecoder();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                    const dataStr = line.replace("data: ", "").trim();
+                    if (dataStr === "[DONE]") return;
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (data.type === "chunk") {
+                            onChunk(data.content);
+                        }
+                    } catch (e) {
+                        // Ignore malformed JSON chunks
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        logger.error("Space chat error", e);
+        throw e;
+    }
 };

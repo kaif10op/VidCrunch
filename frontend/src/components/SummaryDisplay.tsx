@@ -203,7 +203,7 @@ const SummaryDisplay = ({
            animate={{ opacity: 1, y: 0 }}
            exit={{ opacity: 0, y: -10 }}
            transition={{ duration: 0.2 }}
-           className="bg-gray-50/30 dark:bg-gray-900/10 rounded-[40px] border border-gray-100 dark:border-gray-800 p-8 min-h-[400px]"
+           className="bg-secondary/20 rounded-[40px] border border-border p-8 min-h-[400px]"
         >
           {currentTab === "chapters" ? (
              <div className="space-y-12">
@@ -215,18 +215,18 @@ const SummaryDisplay = ({
                              onClick={() => onTimestampClick?.(parseTimeToSeconds(ts.time))}
                              className={cn(
                                 "w-16 h-10 rounded-2xl border flex items-center justify-center text-xs font-black shadow-sm transition-all",
-                                i === activeChapterIndex ? "bg-black text-white border-black" : "bg-white dark:bg-black border-gray-100 dark:border-gray-800 group-hover:border-black dark:group-hover:border-white"
+                                i === activeChapterIndex ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:border-primary"
                              )}
                           >
                              {ts.time}
                           </button>
-                          <div className="w-0.5 flex-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                          <div className="w-0.5 flex-1 bg-border rounded-full" />
                        </div>
                        <div className="flex-1 pb-12 group-last:pb-0">
                           <div className="flex items-center justify-between gap-4 mb-2">
                             <h3 className={cn(
                                 "text-lg font-bold transition-colors",
-                                i === activeChapterIndex ? "text-black dark:text-white" : "text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white"
+                                i === activeChapterIndex ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                             )}>{ts.label}</h3>
                             <Button 
                                 size="sm" 
@@ -240,7 +240,7 @@ const SummaryDisplay = ({
                                 <Sparkles className="h-3 w-3" /> Explain
                             </Button>
                           </div>
-                          <p className="text-sm font-medium text-gray-400 dark:text-gray-500 leading-relaxed">
+                          <p className="text-sm font-medium text-muted-foreground leading-relaxed">
                             Deep analysis of {ts.label.toLowerCase()} covering key concepts and practical applications shared in this section.
                           </p>
                        </div>
@@ -252,29 +252,29 @@ const SummaryDisplay = ({
              <div className="space-y-8">
                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-thin">
                  {transcript_segments?.map((seg, i) => (
-                   <div 
-                     key={i} 
-                     ref={i === activeTranscriptIndex ? activeLineRef : null}
-                     className={cn(
-                       "p-4 rounded-2xl transition-all cursor-pointer flex gap-6 items-start",
-                       i === activeTranscriptIndex ? "bg-white dark:bg-gray-800 shadow-md border border-gray-100 dark:border-gray-700" : "hover:bg-white/50 dark:hover:bg-gray-900/50"
-                     )}
-                     onClick={() => onTimestampClick?.(seg.start)}
-                   >
+                    <div 
+                      key={i} 
+                      ref={i === activeTranscriptIndex ? activeLineRef : null}
+                      className={cn(
+                        "p-4 rounded-2xl transition-all cursor-pointer flex gap-6 items-start",
+                        i === activeTranscriptIndex ? "bg-card shadow-md border border-primary/20" : "hover:bg-accent/50"
+                      )}
+                      onClick={() => onTimestampClick?.(seg.start)}
+                    >
                      <span className={cn(
                        "text-[10px] font-black uppercase tracking-widest shrink-0 mt-1 w-12",
-                       i === activeTranscriptIndex ? "text-green-600" : "text-gray-300"
+                       i === activeTranscriptIndex ? "text-primary" : "text-muted-foreground/50"
                      )}>{Math.floor(seg.start/60)}:{String(Math.floor(seg.start%60)).padStart(2, '0')}</span>
                      <p className={cn(
                        "text-sm font-medium leading-relaxed",
-                       i === activeTranscriptIndex ? "text-gray-800 dark:text-gray-100" : "text-gray-400"
+                       i === activeTranscriptIndex ? "text-foreground font-semibold" : "text-muted-foreground"
                      )}>{seg.text}</p>
                    </div>
                  ))}
                </div>
 
-               {/* Add Context-Aware Chat Trigger */}
-               <div className="mt-12 pt-12 border-t border-gray-100 dark:border-gray-800">
+                {/* Add Context-Aware Chat Trigger */}
+                <div className="mt-12 pt-12 border-t border-border">
                   <div className="relative group">
                     <input
                       type="text"
@@ -289,10 +289,10 @@ const SummaryDisplay = ({
                           }
                         }
                       }}
-                      className="w-full h-16 bg-white dark:bg-black rounded-3xl border border-gray-200 dark:border-gray-800 px-8 pr-16 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all shadow-sm"
+                      className="w-full h-16 bg-card rounded-3xl border border-border px-8 pr-16 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring transition-all shadow-sm"
                     />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-black dark:bg-white flex items-center justify-center cursor-pointer">
-                      <ChevronRight className="h-4 w-4 text-white dark:text-black" />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-primary flex items-center justify-center cursor-pointer">
+                      <ChevronRight className="h-4 w-4 text-primary-foreground" />
                     </div>
                   </div>
                 </div>
@@ -307,19 +307,19 @@ const SummaryDisplay = ({
             <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
-                className="mx-8 p-8 bg-black rounded-[2.5rem] border border-white/10 relative overflow-hidden shadow-2xl"
+                className="mx-8 p-8 bg-card rounded-[2.5rem] border border-border relative overflow-hidden shadow-2xl"
             >
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-100">Deep-Dive Analysis</span>
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/80">Deep-Dive Analysis</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={onClearExplanation} className="h-8 w-8 p-0 rounded-lg text-white/40 hover:text-white">
+                    <Button variant="ghost" size="sm" onClick={onClearExplanation} className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground">
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
-                <div className="prose prose-invert prose-sm max-w-none">
-                    <RichMessage content={aiExplanation} role="assistant" className="text-gray-200" />
+                <div className="prose prose-invert dark:prose-invert prose-sm max-w-none">
+                    <RichMessage content={aiExplanation} role="assistant" className="text-foreground/90" />
                 </div>
             </motion.div>
         )}

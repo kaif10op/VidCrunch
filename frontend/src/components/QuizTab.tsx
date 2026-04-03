@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { memo, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, ChevronRight, Brain, RotateCcw, Trophy, ArrowRight, Lightbulb, Baby, Footprints, HelpCircle, Send, Mic, Keyboard, Plus } from "lucide-react";
+import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useQuizContext } from "@/contexts/QuizContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -28,26 +30,17 @@ const QuizTab = ({
   quizAIExplanation,
   onClearExplanation
 }: QuizTabProps) => {
-  const [quiz, setQuiz] = useState(initialQuiz);
-  const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [score, setScore] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const { quiz, setQuiz, current, setCurrent, selected, setSelected, score, setScore, finished, setFinished, answers, setAnswers, resetQuiz } = useQuizContext();
+  const reducedMotion = useReducedMotion();
   const [chatInput, setChatInput] = useState("");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [lastCount, setLastCount] = useState(initialQuiz.length);
   const [showAdditionBadge, setShowAdditionBadge] = useState(false);
 
   useEffect(() => {
-    if (initialQuiz.length > lastCount) {
-      setShowAdditionBadge(true);
-      setTimeout(() => setShowAdditionBadge(false), 3000);
-      setLastCount(initialQuiz.length);
-    }
     setQuiz(initialQuiz);
     onClearExplanation?.();
-  }, [initialQuiz, lastCount, onClearExplanation]);
+  }, [initialQuiz, onClearExplanation]);
 
   useEffect(() => {
     onClearExplanation?.();
@@ -72,13 +65,9 @@ const QuizTab = ({
   }, [current, quiz.length]);
 
   const handleRestart = useCallback(() => {
-    setCurrent(0);
-    setSelected(null);
-    setScore(0);
-    setFinished(false);
-    setAnswers([]);
+    resetQuiz();
     onClearExplanation?.();
-  }, [onClearExplanation]);
+  }, [resetQuiz, onClearExplanation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -139,31 +128,31 @@ const QuizTab = ({
 
   if (finished) {
     return (
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl p-10 text-center border shadow-sm border-gray-100">
-        <Trophy className={`h-16 w-16 mx-auto ${pct >= 70 ? "text-yellow-400" : "text-gray-300"}`} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-card rounded-3xl p-10 text-center border shadow-sm border-border">
+        <Trophy className={`h-16 w-16 mx-auto ${pct >= 70 ? "text-yellow-400" : "text-muted-foreground/30"}`} />
         <div className="space-y-4">
           <h3 className="text-2xl font-bold text-foreground mt-4">
             {pct >= 90 ? "Outstanding!" : pct >= 70 ? "Well Done!" : "Keep Learning!"}
           </h3>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Score Achieved</p>
           <div className="text-6xl font-bold text-foreground my-6">{score}<span className="text-2xl text-muted-foreground font-medium">/{quiz.length}</span></div>
-          <div className="w-full h-3 bg-gray-50 rounded-full overflow-hidden border">
+          <div className="w-full h-3 bg-secondary rounded-full overflow-hidden border border-border">
             <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, ease: "easeOut" }} className={`h-full rounded-full ${pct >= 70 ? "bg-green-500" : "bg-orange-500"}`} />
           </div>
           <p className="text-xs font-medium text-muted-foreground">{pct}% accuracy</p>
         </div>
         <div className="mt-10 flex flex-col gap-3 max-w-[280px] mx-auto">
-          <Button onClick={handleRestart} className="h-14 rounded-2xl bg-black text-white font-bold gap-2">
+          <Button onClick={handleRestart} className="h-14 rounded-2xl bg-primary text-primary-foreground font-bold gap-2">
             <RotateCcw className="h-4 w-4" /> Try Again
           </Button>
           <Button 
             variant="outline"
             disabled={isGenerating}
             onClick={onGenerateMore}
-            className="h-14 rounded-2xl border-gray-200 font-bold gap-2 hover:bg-gray-50 transition-all"
+            className="h-14 rounded-2xl border-border font-bold gap-2 hover:bg-secondary transition-all"
           >
             {isGenerating ? (
-              <div className="w-4 h-4 border-2 border-gray-300 border-t-black animate-spin rounded-full" />
+              <div className="w-4 h-4 border-2 border-muted border-t-primary animate-spin rounded-full" />
             ) : (
               <Plus className="h-4 w-4" />
             )}
@@ -180,13 +169,13 @@ const QuizTab = ({
     <motion.div key={current} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-4 border-black border-r-transparent flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-4 border-primary border-r-transparent flex items-center justify-center">
                 <span className="text-[10px] font-black">{Math.round(((current) / quiz.length) * 100)}%</span>
             </div>
             <div>
                 <h3 className="text-xs font-bold">Quiz Progress</h3>
                 <div className="flex items-center gap-1.5 overflow-hidden">
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter shrink-0">{quiz.length} Total Questions</p>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter shrink-0">{quiz.length} Total Questions</p>
                     <AnimatePresence>
                     {showAdditionBadge && (
                         <motion.span 
@@ -208,8 +197,8 @@ const QuizTab = ({
                 size="sm" 
                 onClick={() => setShowShortcuts(!showShortcuts)}
                 className={cn(
-                    "h-8 px-2 rounded-lg bg-gray-50 border border-gray-100 transition-colors",
-                    showShortcuts && "bg-black text-white"
+                    "h-8 px-2 rounded-lg bg-secondary border border-border transition-colors",
+                    showShortcuts && "bg-primary text-primary-foreground"
                 )}
             >
                 <Keyboard className="h-3.5 w-3.5" />
@@ -218,19 +207,19 @@ const QuizTab = ({
                 variant="ghost" 
                 size="sm" 
                 onClick={handleRestart}
-                className="h-8 w-8 p-0 rounded-lg bg-gray-50 border border-gray-100"
+                className="h-8 w-8 p-0 rounded-lg bg-secondary border border-border"
             >
-                <RotateCcw className="h-3.5 w-3.5 text-gray-500" />
+                <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
             <Button 
                 variant="ghost" 
                 size="sm" 
                 disabled={isGenerating}
                 onClick={() => onGenerateMore?.()}
-                className="h-8 px-3 rounded-lg bg-black text-white text-[10px] font-bold gap-1.5"
+                className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-[10px] font-bold gap-1.5"
             >
                 {isGenerating ? (
-                    <div className="w-2.5 h-2.5 border border-white/30 border-t-white animate-spin rounded-full" />
+                    <div className="w-2.5 h-2.5 border border-primary-foreground/30 border-t-primary-foreground animate-spin rounded-full" />
                 ) : (
                     <Plus className="h-3 w-3" />
                 )}
@@ -239,16 +228,18 @@ const QuizTab = ({
         </div>
       </div>
 
-      <AnimatePresence>
-        {showShortcuts && (
-            <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-            >
-            <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
-                {[
+      {showShortcuts && (
+        <div className="mt-2 w-full">
+          {!reducedMotion ? (
+            <AnimatePresence>
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 bg-muted rounded-[2rem] border border-border grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
+                  {[
                     { k: "1-4", l: "Select Option" },
                     { k: "Enter", l: "Next Question" },
                     { k: "H", l: "Hint" },
@@ -257,19 +248,39 @@ const QuizTab = ({
                     { k: "R", l: "Reset Quiz" },
                     { k: "G / +", l: "Add Questions" },
                     { k: "K", l: "Shortcuts" }
-                ].map(s => (
+                  ].map(s => (
                     <div key={s.l} className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
-                    <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{s.l}</span>
+                      <code className="text-[10px] font-black bg-background px-1.5 py-0.5 rounded-md text-foreground border border-border">{s.k}</code>
                     </div>
-                ))}
+                  ))}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div className="p-4 bg-black rounded-[2rem] border border-white/10 grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
+              {[
+                { k: "1-4", l: "Select Option" },
+                { k: "Enter", l: "Next Question" },
+                { k: "H", l: "Hint" },
+                { k: "E", l: "Explain" },
+                { k: "W", l: "Walkthrough" },
+                { k: "R", l: "Reset Quiz" },
+                { k: "G / +", l: "Add Questions" },
+                { k: "K", l: "Shortcuts" }
+              ].map(s => (
+                <div key={s.l} className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.l}</span>
+                  <code className="text-[10px] font-black bg-white/10 px-1.5 py-0.5 rounded-md text-white">{s.k}</code>
+                </div>
+              ))}
             </div>
-            </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-4">
-        <div className="flex-1 h-1.5 bg-gray-50 rounded-full overflow-hidden border">
+        <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${((current + 1) / quiz.length) * 100}%` }}
@@ -289,7 +300,7 @@ const QuizTab = ({
              variant="outline" 
              size="sm" 
              onClick={() => onAIAction?.('quiz_hint', q.question)}
-             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-indigo-100 bg-indigo-50/30 text-indigo-600 hover:bg-indigo-50"
+             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-indigo-100/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20"
            >
              <Lightbulb className="h-3 w-3" /> Hint
            </Button>
@@ -297,7 +308,7 @@ const QuizTab = ({
              variant="outline" 
              size="sm" 
              onClick={() => onAIAction?.('quiz_explain', q.question)}
-             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-purple-100 bg-purple-50/30 text-purple-600 hover:bg-purple-50"
+             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-purple-100/50 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20"
            >
              <Baby className="h-3 w-3" /> Explain like I'm 5
            </Button>
@@ -305,7 +316,7 @@ const QuizTab = ({
              variant="outline" 
              size="sm" 
              onClick={() => onAIAction?.('quiz_explain', `Walk me through this question: ${q.question}`)}
-             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-emerald-100 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50"
+             className="h-8 rounded-full text-[10px] font-bold gap-1.5 border-emerald-100/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
            >
              <Footprints className="h-3 w-3" /> Walk me through it
            </Button>
@@ -317,16 +328,16 @@ const QuizTab = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-4 p-5 bg-black rounded-[2.5rem] border border-white/10 relative overflow-hidden group"
+              className="mt-4 p-5 bg-muted rounded-[2.5rem] border border-border relative overflow-hidden group"
             >
-               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50" />
+               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-50" />
                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-3 bg-white/10 w-fit px-3 py-1 rounded-full border border-white/10">
+                  <div className="flex items-center gap-2 mb-3 bg-primary/10 w-fit px-3 py-1 rounded-full border border-primary/10">
                     <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
                     <span className="text-[8px] font-black uppercase tracking-widest text-amber-100">Genius Breakdown</span>
                   </div>
                   <div className="prose prose-invert prose-xs max-w-none">
-                    <p className="text-[12px] font-medium leading-relaxed text-gray-200">
+                    <p className="text-[12px] font-medium leading-relaxed text-foreground">
                       {quizAIExplanation}
                     </p>
                   </div>
@@ -339,11 +350,11 @@ const QuizTab = ({
       {/* Options */}
       <div className="grid gap-4" role="radiogroup" aria-label="Quiz options">
         {q.options.map((opt, i) => {
-          let variant = "bg-white border-gray-100 text-muted-foreground hover:bg-gray-50 hover:border-gray-200";
+          let variant = "bg-card border-border text-muted-foreground hover:bg-secondary hover:border-primary/20";
           if (selected !== null) {
-            if (i === q.answer) variant = "bg-green-50 border-green-200 text-green-700 shadow-sm";
-            else if (i === selected && i !== q.answer) variant = "bg-red-50 border-red-200 text-red-700 shadow-sm";
-            else variant = "bg-white border-gray-50 text-gray-300 opacity-60";
+            if (i === q.answer) variant = "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 shadow-sm";
+            else if (i === selected && i !== q.answer) variant = "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 shadow-sm";
+            else variant = "bg-card border-border text-muted-foreground/30 opacity-60";
           }
           return (
             <motion.button 
@@ -355,7 +366,7 @@ const QuizTab = ({
               aria-label={`Option ${String.fromCharCode(65 + i)}: ${opt}`}
               className={`w-full text-left flex items-center gap-5 p-5 rounded-3xl border transition-all duration-300 font-bold ${variant}`}
             >
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold text-sm border shadow-sm transition-colors ${selected !== null && i === q.answer ? "bg-green-600 border-green-600 text-white" : selected !== null && i === selected ? "bg-red-600 border-red-600 text-white" : "bg-white border-gray-100 text-gray-900"}`}>
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold text-sm border shadow-sm transition-colors ${selected !== null && i === q.answer ? "bg-green-600 border-green-600 text-white" : selected !== null && i === selected ? "bg-red-600 border-red-600 text-white" : "bg-card border-border text-foreground"}`}>
                 {String.fromCharCode(65 + i)}
               </div>
               <span className="text-base leading-relaxed">{opt}</span>
@@ -368,7 +379,7 @@ const QuizTab = ({
         {selected === null && (
           <button 
             onClick={() => setSelected(-1)}
-            className="w-full text-center py-4 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors border border-dashed border-gray-100 rounded-2xl"
+            className="w-full text-center py-4 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border rounded-2xl"
           >
             I don't know the answer
           </button>
@@ -378,8 +389,8 @@ const QuizTab = ({
       {/* Explanation */}
       <AnimatePresence>
         {selected !== null && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-6 rounded-3xl border ${selected === q.answer ? "border-green-100 bg-green-50/50" : "border-orange-100 bg-orange-50/50"}`}>
-            <p className="text-sm leading-relaxed text-gray-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-6 rounded-3xl border ${selected === q.answer ? "border-green-100 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20" : "border-orange-100 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/20"}`}>
+            <p className="text-sm leading-relaxed text-foreground">
                <span className="text-[10px] font-semibold uppercase tracking-wider block mb-2 text-muted-foreground">Detailed Explanation</span>
                {q.explanation}
             </p>
@@ -389,7 +400,7 @@ const QuizTab = ({
 
       {selected !== null && (
         <div className="flex justify-end pt-4">
-          <Button variant="default" onClick={handleNext} className="gap-2 h-14 px-10 rounded-2xl font-semibold text-white bg-gray-900 hover:bg-black transition-all">
+          <Button variant="default" onClick={handleNext} className="gap-2 h-14 px-10 rounded-2xl font-semibold text-primary-foreground bg-primary hover:bg-primary/90 transition-all">
             {current + 1 >= quiz.length ? "Finish Quiz" : "Next Challenge"}
             <ArrowRight className="h-5 w-5" />
           </Button>
@@ -397,7 +408,7 @@ const QuizTab = ({
       )}
 
       {/* Integrated Chat for Quiz */}
-      <div className="mt-8 pt-6 border-t border-gray-50">
+      <div className="mt-8 pt-6 border-t border-border">
         <div className="relative group">
           <textarea 
             value={chatInput}
@@ -412,7 +423,7 @@ const QuizTab = ({
               }
             }}
             placeholder="Ask about this question..."
-            className="w-full h-12 bg-gray-50/50 border border-gray-100 rounded-2xl pl-5 pr-14 py-3.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-gray-200 focus:ring-4 focus:ring-black/5 transition-all scrollbar-none resize-none"
+            className="w-full h-12 bg-secondary/50 border border-border rounded-2xl pl-5 pr-14 py-3.5 text-xs font-medium focus:outline-none focus:bg-background focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all scrollbar-none resize-none"
           />
           <button 
             onClick={() => {
@@ -421,7 +432,7 @@ const QuizTab = ({
                 setChatInput("");
               }
             }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black text-white rounded-xl shadow-lg shadow-black/10 hover:scale-105 transition-all"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/10 hover:scale-105 transition-all"
           >
             <Send className="h-3.5 w-3.5" />
           </button>
@@ -431,4 +442,4 @@ const QuizTab = ({
   );
 };
 
-export default QuizTab;
+export default memo(QuizTab);

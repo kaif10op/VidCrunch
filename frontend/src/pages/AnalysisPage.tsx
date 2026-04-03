@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Play, GraduationCap, Map as MapIcon, FileText, List, Settings2 } from "lucide-react";
+import { X, Play, GraduationCap, Map as MapIcon, FileText, List, Settings2, Sparkles } from "lucide-react";
 import { useAnalysisContext } from "@/contexts/AnalysisContext";
 import { useUIContext } from "@/contexts/UIContext";
 import { useSpacesContext } from "@/contexts/SpacesContext";
@@ -12,6 +12,7 @@ import LoadingSkeleton from "@/components/LoadingSkeleton";
 import LearnTools from "@/components/LearnTools";
 import { Button } from "@/components/ui/button";
 import MindMapDetail from "@/components/MindMapDetail";
+import AIChatSidebar from "@/components/AIChatSidebar";
 import { TOOL_IDS, UTILITY_TOOLS } from "@/lib/toolConstants";
 
 export default function AnalysisPage() {
@@ -115,13 +116,13 @@ export default function AnalysisPage() {
 
   const sets = useMemo(() => [
     { id: TOOL_IDS.SUMMARY, name: 'Overview & Insights', date: 'Generated', type: 'summary', isGenerating: false },
-    ...(summaryData?.quiz?.length ? [{ id: TOOL_IDS.QUIZ, name: 'Knowledge Quiz', date: 'Generated', type: 'quiz' }] : []),
-    ...(summaryData?.flashcards?.length ? [{ id: TOOL_IDS.FLASHCARDS, name: 'Brain Cards', date: 'Generated', type: 'flashcards' }] : []),
-    ...(summaryData?.roadmap ? [{ id: TOOL_IDS.ROADMAP, name: 'Learning Path', date: 'Generated', type: 'roadmap' }] : []),
+    ...(summaryData?.quiz?.length ? [{ id: TOOL_IDS.QUIZ, name: 'Knowledge Quiz', date: 'Generated', type: 'quiz', isGenerating: false }] : []),
+    ...(summaryData?.flashcards?.length ? [{ id: TOOL_IDS.FLASHCARDS, name: 'Brain Cards', date: 'Generated', type: 'flashcards', isGenerating: false }] : []),
+    ...(summaryData?.roadmap ? [{ id: TOOL_IDS.ROADMAP, name: 'Learning Path', date: 'Generated', type: 'roadmap', isGenerating: false }] : []),
     ...(summaryData?.mind_map ? [{ id: TOOL_IDS.MIND_MAP, name: 'Mind Map', date: 'Generated', type: 'mindmap', isGenerating: false }] : []),
     ...(summaryData?.podcast ? [{ id: TOOL_IDS.PODCAST, name: 'Audio Podcast', date: 'Generated', type: 'podcast', isGenerating: false }] : []),
-    ...(summaryData?.glossary?.length ? [{ id: TOOL_IDS.GLOSSARY, name: 'Video Glossary', date: 'Generated', type: 'glossary' }] : []),
-    ...(summaryData?.resources?.length ? [{ id: TOOL_IDS.RESOURCES, name: 'Resource Hub', date: 'Generated', type: 'resources' }] : []),
+    ...(summaryData?.glossary?.length ? [{ id: TOOL_IDS.GLOSSARY, name: 'Video Glossary', date: 'Generated', type: 'glossary', isGenerating: false }] : []),
+    ...(summaryData?.resources?.length ? [{ id: TOOL_IDS.RESOURCES, name: 'Resource Hub', date: 'Generated', type: 'resources', isGenerating: false }] : []),
     ...(generatingTools.map(toolId => ({
       id: `gen-${toolId}`,
       name: `Generating ${toolId.charAt(0).toUpperCase() + toolId.slice(1)}...`,
@@ -167,8 +168,8 @@ export default function AnalysisPage() {
             )}>
               {/* Video Player Section */}
               <div className={cn(
-                "transition-all duration-500 ease-in-out origin-top relative group rounded-3xl overflow-hidden shadow-xl shadow-black/5 dark:shadow-white/5 border border-gray-100 dark:border-gray-800",
-                isVideoMinimized ? "h-0 opacity-0 mb-0" : "h-auto opacity-100 dark:bg-black mb-10"
+                "transition-all duration-500 ease-in-out origin-top relative group rounded-3xl overflow-hidden shadow-xl shadow-foreground/5 border border-border",
+                isVideoMinimized ? "h-0 opacity-0 mb-0" : "h-auto opacity-100 bg-background mb-10"
               )}>
                 {!isVideoMinimized && (
                   <Button
@@ -199,7 +200,7 @@ export default function AnalysisPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setIsVideoMinimized(false)}
-                    className="w-full rounded-[24px] border border-gray-100 dark:border-gray-800 bg-white dark:bg-black hover:bg-gray-50 dark:hover:bg-gray-900 transition-all font-bold uppercase tracking-widest text-[10px] h-12 gap-3 dark:text-white"
+                    className="w-full rounded-[24px] border border-border bg-background hover:bg-secondary transition-all font-bold uppercase tracking-widest text-[10px] h-12 gap-3 text-foreground"
                   >
                     <Play className="h-4 w-4" /> Show Video Player
                   </Button>
@@ -214,48 +215,78 @@ export default function AnalysisPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="py-6"
+                    className="py-12"
                   >
-                    <div className="bg-gray-50/50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 p-8 rounded-3xl shadow-sm">
-                      <div className="flex items-end justify-between mb-10">
-                         <div>
-                           <h2 className="text-3xl font-bold mb-3 text-black dark:text-white">Synthesizing Knowledge</h2>
-                           <div className="flex items-center gap-3">
+                    <div className="bg-card/50 backdrop-blur-xl border border-border p-10 md:p-16 rounded-[3rem] shadow-2xl shadow-foreground/5 relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-secondary overflow-hidden">
+                        <motion.div 
+                          initial={{ x: "-100%" }}
+                          animate={{ x: "100%" }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                          className="w-1/2 h-full bg-primary"
+                        />
+                      </div>
+                      
+                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16">
+                         <div className="space-y-4">
+                           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary">
+                             <Sparkles className="h-3 w-3 animate-pulse" />
+                             <span className="text-[10px] font-black uppercase tracking-widest">Genius AI Active</span>
+                           </div>
+                           <h2 className="text-4xl md:text-5xl font-black text-foreground tracking-tight leading-[1.1]">
+                             Synthesizing <br /> <span className="text-muted-foreground/40">Knowledge.</span>
+                           </h2>
+                           <div className="flex items-center gap-4">
                              <div className="flex items-center gap-2">
-                               <div className={cn("h-2 w-2 rounded-full animate-pulse", analysisProgress < 30 ? "bg-amber-500" : analysisProgress < 70 ? "bg-blue-500" : "bg-green-500")} />
-                               <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                               <div className={cn("h-2.5 w-2.5 rounded-full animate-pulse", analysisProgress < 30 ? "bg-amber-500" : analysisProgress < 70 ? "bg-blue-500" : "bg-emerald-500")} />
+                               <span className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] opacity-60">
                                  {analysisProgress < 20 ? "Pre-processing" : 
                                   analysisProgress < 50 ? "Transcript Extraction" : 
                                   analysisProgress < 80 ? "AI Analysis" : 
-                                  "Finalizing"}
+                                  "Finalizing Insights"}
                                </span>
                              </div>
                            </div>
                          </div>
-                         <div className="text-right">
-                           <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Progress</p>
-                           <div className="flex flex-col items-end">
-                             <span className="text-5xl font-black leading-none text-black">{analysisProgress}%</span>
+                         <div className="text-left md:text-right shrink-0">
+                           <p className="text-[10px] font-black text-muted-foreground/30 uppercase tracking-[0.3em] mb-2">Synthesis Progress</p>
+                           <div className="flex items-baseline md:justify-end gap-1">
+                             <span className="text-7xl font-black leading-none text-foreground tracking-tighter">{analysisProgress}</span>
+                             <span className="text-2xl font-black text-muted-foreground/20">%</span>
                            </div>
                          </div>
                       </div>
-                      <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+
+                      <div className="relative h-3 w-full bg-secondary/50 rounded-full overflow-hidden mb-12">
                          <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: `${analysisProgress}%` }}
-                          className="h-full bg-black transition-all duration-500"
+                          transition={{ type: "spring", damping: 20 }}
+                          className="absolute inset-x-0 h-full bg-primary shadow-[0_0_20px_rgba(var(--primary),0.3)]"
                          />
                       </div>
-                      <div className="grid grid-cols-4 gap-2 mt-10">
-                         {[25, 50, 75, 100].map((step) => (
-                           <div key={step} className={cn(
-                             "h-1.5 rounded-full transition-colors duration-500",
-                             analysisProgress >= step ? "bg-black" : "bg-gray-200"
-                           )} />
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                         {[
+                           { label: "Scan Content", target: 25 },
+                           { label: "Tokenize Data", target: 50 },
+                           { label: "AI Reasoning", target: 75 },
+                           { label: "Visual Maps", target: 100 }
+                         ].map((step) => (
+                           <div key={step.target} className="space-y-4">
+                              <div className={cn(
+                                "h-1 rounded-full transition-all duration-700",
+                                analysisProgress >= step.target ? "bg-primary" : "bg-secondary"
+                              )} />
+                              <p className={cn(
+                                "text-[9px] font-black uppercase tracking-widest transition-colors",
+                                analysisProgress >= step.target ? "text-foreground" : "text-muted-foreground/30"
+                              )}>{step.label}</p>
+                           </div>
                          ))}
                       </div>
                     </div>
-                    <div className="opacity-40 grayscale pointer-events-none mt-12">
+                    <div className="opacity-20 grayscale pointer-events-none mt-16 scale-95 blur-[2px]">
                       <LoadingSkeleton />
                     </div>
                   </motion.div>
@@ -264,53 +295,53 @@ export default function AnalysisPage() {
                     key="summary"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="space-y-8"
+                    className="space-y-12"
                   >
-                    <div className="bg-white dark:bg-black rounded-[3rem] overflow-hidden border border-gray-100 dark:border-gray-800 shadow-xl shadow-black/5 dark:shadow-white/5">
+                    <div className="bg-card rounded-[3.5rem] overflow-hidden border border-border shadow-2xl shadow-foreground/5 transition-all">
                       {/* Sub-navigation for Detail View */}
-                      <div className="flex items-center gap-6 px-10 pt-8 pb-4 border-b border-gray-50 dark:border-gray-900 bg-gray-50/30 dark:bg-gray-900/10">
+                      <div className="flex items-center gap-8 px-12 pt-10 pb-4 border-b border-border bg-secondary/10">
                         <button
                           onClick={() => handleOpenTab(TOOL_IDS.CHAPTERS)}
-                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.CHAPTERS ? "text-indigo-600" : "text-gray-400 hover:text-gray-600")}
+                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.CHAPTERS ? "text-primary" : "text-muted-foreground/40 hover:text-muted-foreground")}
                         >
                           Chapters
-                          {activeSidebarTab === TOOL_IDS.CHAPTERS && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+                          {activeSidebarTab === TOOL_IDS.CHAPTERS && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full" />}
                         </button>
                         <button
                           onClick={() => handleOpenTab(TOOL_IDS.TRANSCRIPT)}
-                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.TRANSCRIPT ? "text-indigo-600" : "text-gray-400 hover:text-gray-600")}
+                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.TRANSCRIPT ? "text-primary" : "text-muted-foreground/40 hover:text-muted-foreground")}
                         >
                           Transcript
-                          {activeSidebarTab === TOOL_IDS.TRANSCRIPT && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+                          {activeSidebarTab === TOOL_IDS.TRANSCRIPT && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full" />}
                         </button>
                         <button
                           onClick={() => handleOpenTab(TOOL_IDS.MIND_MAP)}
-                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.MIND_MAP ? "text-indigo-600" : "text-gray-400 hover:text-gray-600")}
+                          className={cn("text-[10px] font-black uppercase tracking-[0.2em] pb-3 transition-all relative", activeSidebarTab === TOOL_IDS.MIND_MAP ? "text-primary" : "text-muted-foreground/40 hover:text-muted-foreground")}
                         >
                           Mastery Map
-                          {activeSidebarTab === TOOL_IDS.MIND_MAP && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+                          {activeSidebarTab === TOOL_IDS.MIND_MAP && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full" />}
                         </button>
                       </div>
 
                       {/* Unified Search/Scroll Controls for Detail View */}
-                      <div className="flex items-center gap-6 px-10 pt-4 pb-6 border-b border-gray-50 dark:border-gray-900">
+                      <div className="flex items-center gap-6 px-10 pt-4 pb-6 border-b border-border">
                         {activeSidebarTab === TOOL_IDS.TRANSCRIPT && (
                           <button 
                             onClick={() => setIsAutoScroll(!isAutoScroll)}
                             className={cn(
                               "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all shadow-sm",
-                              isAutoScroll ? "bg-black text-white border-black" : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50 dark:bg-black dark:border-gray-800"
+                              isAutoScroll ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:bg-secondary"
                             )}
                           >
-                            <Settings2 className={cn("h-3.5 w-3.5", isAutoScroll ? "text-white" : "text-gray-400")} />
+                            <Settings2 className={cn("h-3.5 w-3.5", isAutoScroll ? "text-primary-foreground" : "text-muted-foreground")} />
                             <span className="text-[10px] font-black uppercase tracking-widest">Auto Scroll</span>
                           </button>
                         )}
                         <div className="flex-1" />
-                        <div className="flex items-center gap-2 text-[10px] font-black text-gray-300 uppercase tracking-widest">
+                        <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground/30 uppercase tracking-widest">
                              <span>Detail View</span>
-                             <div className="w-1 h-1 rounded-full bg-gray-200" />
-                             <span className="text-gray-400">{activeSidebarTab.charAt(0).toUpperCase() + activeSidebarTab.slice(1)}</span>
+                             <div className="w-1 h-1 rounded-full bg-border" />
+                             <span className="text-muted-foreground">{activeSidebarTab.charAt(0).toUpperCase() + activeSidebarTab.slice(1)}</span>
                         </div>
                       </div>
 
@@ -319,11 +350,18 @@ export default function AnalysisPage() {
                           <motion.div
                             initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="h-[700px] bg-slate-50/30"
+                            className="h-[700px] bg-secondary/5"
                           >
                             <MindMapDetail 
                               mindMap={summaryData.mind_map} 
-                              onAIAction={handleToolClick}
+                              onAIAction={(toolId, value, context) => {
+                                const isGenerationRequest = value?.toLowerCase().includes('generate') || value?.toLowerCase().includes('regenerate');
+                                if ((toolId === TOOL_IDS.MIND_MAP || toolId === 'mind_map' || toolId === 'mindmap') && isGenerationRequest) {
+                                  handleGenerateTool(TOOL_IDS.MIND_MAP);
+                                  return;
+                                }
+                                handleToolClick(toolId, value, context);
+                              }}
                               onTimestampClick={handleTimestampClick}
                               isGenerating={generatingTools.includes(TOOL_IDS.MIND_MAP)}
                             />
@@ -343,8 +381,12 @@ export default function AnalysisPage() {
                             onAddToSpace={handleAddToSpace}
                             currentTime={currentTime}
                             onToolClick={(toolId, value, context) => {
+                              if (toolId === TOOL_IDS.MIND_MAP && !value) {
+                                handleOpenTab(TOOL_IDS.MIND_MAP);
+                                return;
+                              }
                               handleToolClick(toolId, value, context);
-                              if ([TOOL_IDS.CHAPTERS, TOOL_IDS.TRANSCRIPT, TOOL_IDS.SUMMARY, TOOL_IDS.MIND_MAP].includes(toolId)) {
+                              if ([(TOOL_IDS.CHAPTERS as string), TOOL_IDS.TRANSCRIPT, TOOL_IDS.SUMMARY].includes(toolId)) {
                                 handleOpenTab(toolId);
                               }
                             }}
@@ -393,6 +435,11 @@ export default function AnalysisPage() {
                     }
 
                     // If already generated/available, open the tab
+                    if (toolId === TOOL_IDS.MIND_MAP) {
+                      handleOpenTab(TOOL_IDS.MIND_MAP);
+                      return;
+                    }
+
                     handleOpenTab(toolId);
                   }} 
                   activeSidebarTab={activeSidebarTab}
@@ -436,7 +483,7 @@ export default function AnalysisPage() {
         <>
           <button
             onClick={() => setIsMobileLearnOpen(!isMobileLearnOpen)}
-            className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-black text-white rounded-2xl shadow-xl flex items-center justify-center hover:bg-gray-800 transition-all"
+            className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-primary text-primary-foreground rounded-2xl shadow-xl flex items-center justify-center hover:bg-primary/90 transition-all"
             aria-label="Open learning tools"
           >
             <GraduationCap className="h-6 w-6" />
@@ -457,10 +504,10 @@ export default function AnalysisPage() {
                   animate={{ y: 0 }} 
                   exit={{ y: "100%" }}
                   transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                  className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[70vh] overflow-y-auto"
+                  className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-3xl shadow-2xl max-h-[70vh] overflow-y-auto border-t border-border"
                 >
                   <div className="p-1 flex justify-center">
-                    <div className="w-10 h-1 rounded-full bg-gray-200" />
+                    <div className="w-10 h-1 rounded-full bg-secondary" />
                   </div>
                   <LearnTools
                     onToolClick={(id, v, c) => {
@@ -481,6 +528,12 @@ export default function AnalysisPage() {
 
                       if (!isAvailable) {
                         handleGenerateTool(id);
+                        return;
+                      }
+
+                      if (id === TOOL_IDS.MIND_MAP) {
+                        handleOpenTab(TOOL_IDS.MIND_MAP);
+                        setIsMobileLearnOpen(false);
                         return;
                       }
 
@@ -525,7 +578,15 @@ export default function AnalysisPage() {
       )}
 
       {/* AI Chat Sidebar */}
-
+      <AIChatSidebar 
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        messages={chatMessages}
+        onSendMessage={handleSendMessage}
+        isLoading={isChatLoading}
+        contextSnippet={contextSnippet}
+        onClearContext={() => setContextSnippet(null)}
+      />
     </motion.div>
   );
 }
