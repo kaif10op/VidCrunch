@@ -702,6 +702,12 @@ class WorkerSettings:
     
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
 
+    # Memory optimization for 512MB Render tier:
+    # Restrict to 1 concurrent analysis job at a time
+    max_jobs = 1
+    # Allow jobs to take up to 10 minutes max 
+    job_timeout = 600
+
     @staticmethod
     async def on_startup(ctx):
         logger.info("ARQ worker started")

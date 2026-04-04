@@ -82,22 +82,11 @@ class TranscriptEngine:
 
     @classmethod
     def _check_whisper_available(cls) -> bool:
-        """Check if any Whisper library is available and not disabled by settings."""
-        if settings.DISABLE_LOCAL_WHISPER:
-            return False
-            
-        if cls._whisper_available is not None:
-            return cls._whisper_available
-        try:
-            from faster_whisper import WhisperModel
-            cls._whisper_available = True
-        except ImportError:
-            try:
-                import whisper
-                cls._whisper_available = True
-            except ImportError:
-                cls._whisper_available = False
-                logger.info("No Whisper library available. Local transcription disabled.")
+        """Check if whisper or faster-whisper is installed."""
+        # Hard-disabled to prevent OOM errors on Render free tier (512MB limit)
+        # Faster-Whisper requires minimum 1GB RAM to load the base int8 model.
+        # We rely 100% on Cloud APIs (Groq/Gemini).
+        cls._whisper_available = False
         return cls._whisper_available
 
     @classmethod
