@@ -29,9 +29,25 @@ async def lifespan(app: FastAPI):
     from app.database import init_redis_pool
     await init_redis_pool()
     
+    # Natively launch ARQ Worker in the background
+    # This completely eliminates the need for separate worker containers on platforms like Render
+    import asyncio
+    from arq.worker import Worker
+    from app.workers.tasks import WorkerSettings
+    
+    worker = Worker(
+        functions=WorkerSettings.functions,
+        redis_settings=WorkerSettings.redis_settings,
+        on_startup=WorkerSettings.on_startup,
+        on_shutdown=WorkerSettings.on_shutdown
+    )
+    worker_task = asyncio.create_task(worker.main())
+    app.state.worker_task = worker_task
+    
     yield
     
     # Shutdown: Cleanup
+    worker_task.cancel()
     from app.database import engine, close_redis_pool
     await engine.dispose()
     await close_redis_pool()
