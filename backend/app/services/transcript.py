@@ -156,61 +156,65 @@ class TranscriptEngine:
             return res
 
         # Stage 1: youtube-transcript-api (fastest, most reliable)
-        await report(1, 6, "Checking YouTube captions...")
+        await report(1, 5, "Checking YouTube captions...")
         logger.info(f"[{video_id}] Stage 1: youtube-transcript-api")
-        result = await self._try_transcript_api(video_id)
-        if result and result.word_count >= 1 and not self._is_repetitive(result.segments):
-            result.source = "youtube_transcript_api"
-            result = await process_result(result)
-            logger.info(f"[{video_id}] ✓ Stage 1 success ({result.word_count} words)")
-            return result
+        try:
+            # Use wait_for to ensure the executor doesn't hang the worker indefinitely
+            result = await asyncio.wait_for(self._try_transcript_api(video_id), timeout=12.0)
+            if result and result.word_count >= 1 and not self._is_repetitive(result.segments):
+                result.source = "youtube_transcript_api"
+                result = await process_result(result)
+                logger.info(f"[{video_id}] ✓ Stage 1 success ({result.word_count} words)")
+                return result
+        except asyncio.TimeoutError:
+            logger.warning(f"[{video_id}] Stage 1 timed out after 12s. Moving to rescue lanes.")
+        except Exception as e:
+            logger.warning(f"[{video_id}] Stage 1 failed: {e}")
 
-        # Stage 2: Manual captions via yt-dlp
-        await report(2, 6, "Checking manual subtitles...")
-        logger.info(f"[{video_id}] Stage 2: yt-dlp manual captions")
+        # Stage 2: Aggressive Subtitle Rescue (Manual + Auto combined)
+        # We try to get ANY captions available in one go to save process overhead
+        await report(2, 5, "Subtitles rescue attempt...")
+        logger.info(f"[{video_id}] Stage 2: Efficient subtitle rescue")
+        
+        # Try manual first, but keep the process open for auto if needed in internal logic
         result = await self._try_ytdlp_captions(url, auto=False)
+        if not result or result.word_count < self.MIN_WORD_COUNT:
+            result = await self._try_ytdlp_captions(url, auto=True)
+
         if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
-            result.source = "manual_captions"
+            result.source = "ytdlp_subtitles"
             result = await process_result(result)
             logger.info(f"[{video_id}] ✓ Stage 2 success ({result.word_count} words)")
             return result
 
-        # Stage 3: Auto-generated captions via yt-dlp
-        await report(3, 6, "Checking auto-generated subtitles...")
-        logger.info(f"[{video_id}] Stage 3: yt-dlp auto captions")
-        result = await self._try_ytdlp_captions(url, auto=True)
-        if result and result.word_count >= self.MIN_WORD_COUNT and not self._is_repetitive(result.segments):
-            result.source = "auto_captions"
-            result = await process_result(result)
-            logger.info(f"[{video_id}] ✓ Stage 3 success ({result.word_count} words)")
-            return result
-
-        # Stage 4: Groq Cloud Whisper (FASTEST)
-        logger.info(f"[{video_id}] Stage 4: Groq Cloud Whisper")
+        # Stage 3: Groq Cloud Whisper (FASTEST fallback)
+        await report(3, 5, "AI transcription (Groq Whisper)...")
+        logger.info(f"[{video_id}] Stage 3: Groq Cloud Whisper")
         cloud_result = await self._try_groq_whisper(url, video_id, report=report)
         if cloud_result and cloud_result.word_count >= self.MIN_WORD_COUNT:
             cloud_result = await process_result(cloud_result)
             logger.info(f"[{video_id}] ✓ Groq Whisper success ({cloud_result.word_count} words)")
             return cloud_result
 
-        # Stage 5: Gemini Native Audio fallback
-        logger.info(f"[{video_id}] Stage 5: Gemini Native Audio Analysis")
+        # Stage 4: Gemini Native Audio fallback
+        await report(4, 5, "AI transcription (Gemini Ultra-Flash)...")
+        logger.info(f"[{video_id}] Stage 4: Gemini Native Audio Analysis")
         cloud_result = await self._try_gemini_whisper(url, video_id, report=report)
         if cloud_result and cloud_result.word_count >= self.MIN_WORD_COUNT:
             cloud_result = await process_result(cloud_result)
             logger.info(f"[{video_id}] ✓ Gemini Audio success ({cloud_result.word_count} words)")
             return cloud_result
 
-        # Stage 6: Local Whisper (last resort, slow)
+        # Stage 5: Local Whisper (last resort, slow)
         if self._check_whisper_available():
-            await report(6, 6, "Local transcription (this may take a while)...")
-            logger.info(f"[{video_id}] Stage 6: Local Whisper")
+            await report(5, 5, "Local transcription (this may take a while)...")
+            logger.info(f"[{video_id}] Stage 5: Local Whisper")
             result = await self._try_whisper(url, video_id)
             if result and result.word_count >= self.MIN_WORD_COUNT:
                 result.source = "local_whisper"
                 result = await process_result(result)
-                logger.info(f"[{video_id}] ✓ Stage 6 success ({result.word_count} words)")
-                await report(6, 6, "Success!")
+                logger.info(f"[{video_id}] ✓ Stage 5 success ({result.word_count} words)")
+                await report(5, 5, "Success!")
                 return result
 
         # All stages failed

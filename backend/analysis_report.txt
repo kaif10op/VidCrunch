@@ -1,0 +1,32 @@
+--- Analysis b23e52ef-4d30-4b1a-9906-8a05072abb08 ---
+Status: completed
+Error: AI analysis partial: All AI providers failed. Last error: Using http2=True, but the 'h2' package is not installed. Make sure to install httpx using `pip install httpx[http2]`.
+Progress: 100
+Has overview: True
+Has timestamps: False, count=0
+Has key_points: False, count=0
+Has tags: False
+Status msg: Analysis ready
+Video ID: 4b645344-c9a2-4b1f-adc2-c92ebba738e1
+
+--- Analysis d3a0024c-1462-4b30-9a27-8791ad8f8562 ---
+Status: completed
+Error: AI analysis partial: All AI providers failed. Last error: Using http2=True, but the 'h2' package is not installed. Make sure to install httpx using `pip install httpx[http2]`.
+Progress: 100
+Has overview: True
+Has timestamps: False, count=0
+Has key_points: False, count=0
+Has tags: False
+Status msg: Analysis ready
+Video ID: deb62519-f61d-49d4-a5ae-a341c68ee4af
+
+--- Analysis 3d16b1e1-0a92-4d20-8a95-e7748a3c6413 ---
+Status: failed
+Error: Transcription failed for all videos
+Progress: 60
+Has overview: False
+Has timestamps: False, count=0
+Has key_points: False, count=0
+Has tags: False
+Status msg: Pivoting to Metadata Analysis...
+Video ID: deb62519-f61d-49d4-a5ae-a341c68ee4af

@@ -124,6 +124,17 @@ def _extract_last_timestamp(lines: list[str]) -> Optional[float]:
     return None
 
 
+def _truncate_to_tokens(text: str, max_tokens: int) -> str:
+    """Truncate text to approximately max_tokens tokens."""
+    token_count = count_tokens(text)
+    if token_count <= max_tokens:
+        return text
+    # Fast approximation: cut by character ratio
+    ratio = max_tokens / token_count
+    cut_point = int(len(text) * ratio * 0.95)  # 5% safety margin
+    return text[:cut_point]
+
+
 # ──────────────────────────────────────────────
 # EMBEDDINGS
 # ──────────────────────────────────────────────
@@ -365,6 +376,7 @@ async def synthesize_content(
     minimal_mode: bool = False,
     tools: Optional[list[str]] = None,
     existing_data: Optional[str] = None,
+    max_tokens: int = 0,
 ) -> dict:
     """
     Generate structured learning content from a transcript using AI.
@@ -402,7 +414,7 @@ async def synthesize_content(
 
     # Map-Reduce logic for long transcripts
     total_tokens = count_tokens(transcript_text)
-    max_single_prompt_tokens = 10000
+    max_single_prompt_tokens = 6000  # Reduced from 10k for faster processing
     
     if total_tokens > max_single_prompt_tokens + 2000: # 2k buffer
         logger.info(f"Transcript too long ({total_tokens} tokens). Using Map-Reduce approach.")
@@ -424,8 +436,11 @@ async def synthesize_content(
         {"role": "user", "content": user_content},
     ]
 
+    # Determine max_tokens: fast initial = 4000, full = 8000
+    effective_max_tokens = max_tokens or (4000 if not tools else 8000)
+
     content = await _call_ai_with_fallback(
-        provider, model, messages, require_json=True
+        provider, model, messages, require_json=True, max_tokens=effective_max_tokens
     )
 
     if not content:
@@ -538,7 +553,7 @@ class AIError(Exception):
     pass
 
 
-async def _call_ai(provider: str, model: str, messages: list[dict], require_json: bool = True) -> str:
+async def _call_ai(provider: str, model: str, messages: list[dict], require_json: bool = True, max_tokens: int = 8000) -> str:
     """Call an AI provider's chat completion API with manual retries.
 
     Supported providers:
@@ -594,7 +609,7 @@ async def _call_ai(provider: str, model: str, messages: list[dict], require_json
             "model": model,
             "messages": messages,
             "temperature": 0.3,
-            "max_tokens": 8000,
+            "max_tokens": max_tokens,
         }
         if require_json:
             body["response_format"] = {"type": "json_object"}
@@ -683,7 +698,7 @@ async def _call_google_ai(model: str, messages: list[dict]) -> str:
 
 
 async def _call_ai_with_fallback(
-    provider: str, model: str, messages: list[dict], require_json: bool = True
+    provider: str, model: str, messages: list[dict], require_json: bool = True, max_tokens: int = 8000
 ) -> str:
     """Try multiple AI providers in sequence if errors occur."""
     fallback_chain = _get_fallback_chain(provider, model)
@@ -691,7 +706,7 @@ async def _call_ai_with_fallback(
 
     for p, m in fallback_chain:
         try:
-            return await _call_ai(p, m, messages, require_json=require_json)
+            return await _call_ai(p, m, messages, require_json=require_json, max_tokens=max_tokens)
         except Exception as e:
             logger.warning(f"AI provider {p} fallback triggered: {e}")
             last_error = e
