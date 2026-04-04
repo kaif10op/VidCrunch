@@ -599,7 +599,7 @@ async def _call_ai(provider: str, model: str, messages: list[dict], require_json
         if require_json:
             body["response_format"] = {"type": "json_object"}
 
-        async with httpx.AsyncClient(http2=True) as client:
+        async with httpx.AsyncClient() as client:
             try:
                 resp = await client.post(url, headers=headers, json=body, timeout=120.0)
             except httpx.TimeoutException as e:
