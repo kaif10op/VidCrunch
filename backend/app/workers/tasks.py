@@ -35,16 +35,8 @@ async def _get_redis_pool():
     """Create an ARQ Redis connection pool."""
     from arq import create_pool
     from arq.connections import RedisSettings
-    import urllib.parse
 
-    parsed = urllib.parse.urlparse(settings.REDIS_URL)
-    redis_settings = RedisSettings(
-        host=parsed.hostname or "localhost",
-        port=parsed.port or 6379,
-        username=parsed.username,
-        password=parsed.password,
-        ssl=parsed.scheme == 'rediss'
-    )
+    redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     return await create_pool(redis_settings)
 
 
@@ -746,16 +738,8 @@ class WorkerSettings:
     
     # Use the Redis URL from settings
     from arq.connections import RedisSettings
-    import urllib.parse
     
-    parsed = urllib.parse.urlparse(settings.REDIS_URL)
-    redis_settings = RedisSettings(
-        host=parsed.hostname or 'localhost', 
-        port=parsed.port or 6379,
-        username=parsed.username,
-        password=parsed.password,
-        ssl=parsed.scheme == 'rediss'
-    )
+    redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
 
     @staticmethod
     async def on_startup(ctx):
