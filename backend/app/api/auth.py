@@ -393,8 +393,9 @@ async def google_oauth_get_callback(
         
         # State validation (CSRF Protection)
         if not cookie_state or cookie_state != state:
-            print(f"WARNING: CSRF mismatch. Expected {cookie_state}, Go {state}")
-            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
+            print(f"WARNING: CSRF mismatch. Expected {cookie_state}, Got {state}")
+            if not settings.DEBUG:
+                return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
 
         async with httpx.AsyncClient() as client:
             print("DEBUG: Exchanging code for token...")
@@ -481,7 +482,9 @@ async def github_oauth_get_callback(request: Request, code: str, state: str, db:
     """Handle GitHub OAuth redirect — exchange code, upsert user, redirect to frontend."""
     cookie_state = request.cookies.get("oauth_state")
     if not cookie_state or cookie_state != state:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
+        print(f"WARNING: CSRF mismatch in GitHub OAuth. Expected {cookie_state}, Got {state}")
+        if not settings.DEBUG:
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
 
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(
@@ -564,7 +567,9 @@ async def linkedin_oauth_get_callback(request: Request, code: str, state: str, d
     """Handle LinkedIn OAuth redirect — exchange code, upsert user, redirect to frontend."""
     cookie_state = request.cookies.get("oauth_state")
     if not cookie_state or cookie_state != state:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
+        print(f"WARNING: CSRF mismatch in LinkedIn OAuth. Expected {cookie_state}, Got {state}")
+        if not settings.DEBUG:
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}?error=csrf_detected")
 
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(

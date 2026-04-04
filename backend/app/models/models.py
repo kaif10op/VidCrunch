@@ -74,12 +74,12 @@ class User(Base):
 
     # Relationships
     credits: Mapped["Credit"] = relationship(back_populates="user", uselist=False, lazy="selectin")
-    spaces: Mapped[list["Space"]] = relationship(back_populates="user", lazy="selectin")
-    analyses: Mapped[list["Analysis"]] = relationship(back_populates="user", lazy="selectin")
-    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="user", lazy="selectin")
-    credit_transactions: Mapped[list["CreditTransaction"]] = relationship(back_populates="user", lazy="selectin")
-    subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="user", lazy="selectin")
-    payments: Mapped[list["Payment"]] = relationship(back_populates="user", lazy="selectin")
+    spaces: Mapped[list["Space"]] = relationship(back_populates="user", lazy="noload")
+    analyses: Mapped[list["Analysis"]] = relationship(back_populates="user", lazy="noload")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="user", lazy="noload")
+    credit_transactions: Mapped[list["CreditTransaction"]] = relationship(back_populates="user", lazy="noload")
+    subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="user", lazy="noload")
+    payments: Mapped[list["Payment"]] = relationship(back_populates="user", lazy="noload")
 
 
 # ──────────────────────────────────────────────
