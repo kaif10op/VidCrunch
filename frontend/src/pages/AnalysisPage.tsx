@@ -240,9 +240,9 @@ export default function AnalysisPage() {
           isSidebarMaximized ? "w-full h-screen overflow-hidden" : (isFocusMode ? "max-w-6xl mx-auto pt-10 pb-24 px-8" : "max-w-6xl mx-auto px-8 py-6")
         )}>
           <div className={cn(
-            "flex flex-col lg:flex-row gap-6 lg:gap-10 transition-all duration-700 h-full overflow-hidden",
+            "flex flex-col lg:flex-row gap-6 lg:gap-10 transition-all duration-700",
             isFocusMode && "lg:gap-12",
-            isSidebarMaximized && "gap-0"
+            isSidebarMaximized && "gap-0 h-full overflow-hidden"
           )}>
             {/* Left Column - Video & Analysis */}
             <div className={cn(
