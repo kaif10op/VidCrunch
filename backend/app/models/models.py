@@ -116,10 +116,10 @@ class Video(Base):
 
     # Relationships
     transcript: Mapped[Optional["Transcript"]] = relationship(back_populates="video", uselist=False, lazy="selectin")
-    transcript_chunks: Mapped[list["TranscriptChunk"]] = relationship(back_populates="video", lazy="selectin")
-    analyses: Mapped[list["Analysis"]] = relationship(back_populates="video", lazy="selectin")
-    space_videos: Mapped[list["SpaceVideo"]] = relationship(back_populates="video", lazy="selectin")
-    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="video", lazy="selectin")
+    transcript_chunks: Mapped[list["TranscriptChunk"]] = relationship(back_populates="video", lazy="noload")
+    analyses: Mapped[list["Analysis"]] = relationship(back_populates="video", lazy="noload")
+    space_videos: Mapped[list["SpaceVideo"]] = relationship(back_populates="video", lazy="noload")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="video", lazy="noload")
 
     __table_args__ = (
         Index("ix_videos_platform_id", "platform", "platform_id"),
@@ -254,10 +254,10 @@ class Space(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="spaces")
-    space_videos: Mapped[list["SpaceVideo"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
-    space_documents: Mapped[list["SpaceDocument"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
-    space_notes: Mapped[list["Note"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
-    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="selectin")
+    space_videos: Mapped[list["SpaceVideo"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="noload")
+    space_documents: Mapped[list["SpaceDocument"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="noload")
+    space_notes: Mapped[list["Note"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="noload")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="space", cascade="all, delete-orphan", lazy="noload")
 
 
 class SpaceVideo(Base):
@@ -277,7 +277,7 @@ class SpaceVideo(Base):
 
     # Relationships
     space: Mapped["Space"] = relationship(back_populates="space_videos")
-    video: Mapped["Video"] = relationship(back_populates="space_videos", lazy="selectin")
+    video: Mapped["Video"] = relationship(back_populates="space_videos", lazy="noload")
 
     __table_args__ = (
         UniqueConstraint("space_id", "video_id", name="uq_space_video"),
@@ -307,8 +307,8 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
-    chunks: Mapped[list["DocumentChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan", lazy="selectin")
-    space_documents: Mapped[list["SpaceDocument"]] = relationship(back_populates="document", cascade="all, delete-orphan", lazy="selectin")
+    chunks: Mapped[list["DocumentChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan", lazy="noload")
+    space_documents: Mapped[list["SpaceDocument"]] = relationship(back_populates="document", cascade="all, delete-orphan", lazy="noload")
 
 
 class DocumentChunk(Base):
@@ -349,7 +349,7 @@ class SpaceDocument(Base):
 
     # Relationships
     space: Mapped["Space"] = relationship(back_populates="space_documents")
-    document: Mapped["Document"] = relationship(back_populates="space_documents", lazy="selectin")
+    document: Mapped["Document"] = relationship(back_populates="space_documents", lazy="noload")
 
     __table_args__ = (
         UniqueConstraint("space_id", "document_id", name="uq_space_document"),
