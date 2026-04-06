@@ -308,7 +308,10 @@ Focus on:
 2. Important names, dates, or specific facts.
 3. The overall "vibe" and purpose of this segment.
 
-Keep your summary dense and factual (max 500 words). This will be combined with other segments later.
+**CRITICAL: Timestamp Preservation**
+You MUST preserve original `[MM:SS]` timestamp markers for major topic shifts or key insights in your summary. This allows the master analysis to maintain time-accurate chapters.
+
+Keep your summary dense and factual (max 600 words). This will be combined with other segments later.
 Respond in {language}."""
 
 
@@ -395,10 +398,12 @@ async def synthesize_content(
             provider, model, existing_data
         )
 
-    # For initial analysis, use the fast prompt (overview + key_points + timestamps + tags)
+    # For initial analysis, use the fast prompt (overview + key_points + takeaways + timestamps + tags)
     if minimal_mode:
+        # If true minimal is requested (e.g. only chapters), use the minimal template
         system_prompt = MINIMAL_SYSTEM_PROMPT_TEMPLATE.format(language=language)
     else:
+        # DEFAULT: Fast Initial Analysis with all core fields
         system_prompt = FAST_INITIAL_PROMPT.format(
             language=language,
             expertise=expertise,
@@ -429,7 +434,16 @@ async def synthesize_content(
 
     title = metadata.get("title", "Unknown")
     channel = metadata.get("channel", "Unknown")
-    user_content = f'Video: "{title}" by {channel}\n\n{context_text}'
+    
+    # Inject existing chapters from metadata if available
+    chapters = metadata.get("chapters", [])
+    chapters_hint = ""
+    if chapters:
+        chapters_hint = "\n\n**Video Chapters (Extracted from Metadata):**\n" + \
+                        "\n".join([f"{c['time']} {c['label']}" for c in chapters]) + \
+                        "\n\nUse these existing chapters as a foundation or improve upon them. Ensure your final timestamps align with these markers."
+
+    user_content = f'Video: "{title}" by {channel}\n\n{context_text}{chapters_hint}'
 
     messages = [
         {"role": "system", "content": system_prompt},

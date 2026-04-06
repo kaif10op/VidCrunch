@@ -148,15 +148,15 @@ class TranscriptEngine:
         await report(1, 5, "Checking YouTube captions...")
         logger.info(f"[{video_id}] Stage 1: youtube-transcript-api")
         try:
-            # Use wait_for to ensure the executor doesn't hang the worker indefinitely
-            result = await asyncio.wait_for(self._try_transcript_api(video_id), timeout=12.0)
+            # For long videos, allow a bit more time to fetch metadata + subtitles
+            result = await asyncio.wait_for(self._try_transcript_api(video_id), timeout=25.0)
             if result and result.word_count >= 1 and not self._is_repetitive(result.segments):
                 result.source = "youtube_transcript_api"
                 result = await process_result(result)
                 logger.info(f"[{video_id}] ✓ Stage 1 success ({result.word_count} words)")
                 return result
         except asyncio.TimeoutError:
-            logger.warning(f"[{video_id}] Stage 1 timed out after 12s. Moving to rescue lanes.")
+            logger.warning(f"[{video_id}] Stage 1 timed out after 25s. Moving to rescue lanes.")
         except Exception as e:
             logger.warning(f"[{video_id}] Stage 1 failed: {e}")
 
@@ -243,7 +243,7 @@ class TranscriptEngine:
 
     async def _try_transcript_api(self, video_id: str) -> Optional[TranscriptResult]:
         """Use youtube-transcript-api to fetch official YouTube transcripts (DRM-safe)."""
-        cookies_path = "/app/cookies.txt"
+        cookies_path = settings.COOKIES_PATH
         session = None
         
         # 1. PREPARE HIGH-TRUST SESSION
@@ -339,7 +339,7 @@ class TranscriptEngine:
                     cmd = [
                         "yt-dlp",
                         "-x",
-                        "--cookies", "/app/cookies.txt",
+                        "--cookies", settings.COOKIES_PATH,
                         "--user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                         "--extractor-args", "youtube:player-client=mweb,web,safari",
                         "-f", "bestaudio/best",
@@ -348,7 +348,7 @@ class TranscriptEngine:
                         "--quiet",
                         url
                     ]
-                    proc = await _run_subprocess(cmd, timeout=300)
+                    proc = await _run_subprocess(cmd, timeout=900)  # Extended to 15 mins for long videos
                     if proc.returncode == 0 and os.path.exists(shard_path):
                         return client_id, proc, shard_path
                     return None
@@ -459,7 +459,8 @@ class TranscriptEngine:
 
                 if report: await report(4, 6, f"Groq: Transcribing {len(shards)} segments...")
                 
-                semaphore = asyncio.Semaphore(10)
+                # Reduce concurrency to 3 for better memory stability on limited RAM
+                semaphore = asyncio.Semaphore(3)
                 async def sem_transcribe(shard_path):
                     async with semaphore:
                         return await self._transcribe_single_file(shard_path, video_id, settings)
@@ -480,8 +481,9 @@ class TranscriptEngine:
         try:
             output_pattern = os.path.join(tmpdir, "shard_%03d.m4a")
             cmd = ["ffmpeg", "-i", audio_path, "-f", "segment", "-segment_time", "900", "-c", "copy", "-y", output_pattern]
-            proc = await _run_subprocess(cmd, timeout=300)
+            proc = await _run_subprocess(cmd, timeout=600) # Extended for large files
             if proc.returncode != 0:
+                logger.error(f"ffmpeg sharding failed with returncode {proc.returncode}: {proc.stderr}")
                 return []
             shards = [os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f.startswith("shard_") and f.endswith(".m4a")]
             return sorted(shards)
@@ -597,7 +599,7 @@ class TranscriptEngine:
                     "-o", output_template,
                     "--no-warnings",
                     "--quiet",
-                    "--cookies", "/app/cookies.txt",
+                    "--cookies", settings.COOKIES_PATH,
                     url,
                 ]
 
@@ -1125,7 +1127,7 @@ async def extract_metadata(video_id: str) -> dict:
             "--no-download",
             "--no-warnings",
             "--quiet",
-            "--cookies", "/app/cookies.txt",
+            "--cookies", settings.COOKIES_PATH,
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "--extractor-args", f"youtube:player-client={client_name}",
             f"https://www.youtube.com/watch?v={video_id}",
@@ -1143,7 +1145,7 @@ async def extract_metadata(video_id: str) -> dict:
         url = f"https://www.youtube.com/watch?v={video_id}"
         # Load Cookies for Authenticated Scrape
         cookies = {}
-        cookie_path = "/app/cookies.txt"
+        cookie_path = settings.COOKIES_PATH
         if os.path.exists(cookie_path):
             with open(cookie_path, "r") as f:
                 for line in f:
@@ -1229,13 +1231,17 @@ async def extract_metadata(video_id: str) -> dict:
                 
                 # CHAPTER EXTRACTION: Parse description for timestamps
                 chapters = []
-                # Match 00:00, 1:23, 01:23:45 format
-                ts_pattern = r"((?:\d+:)?\d+:\d+)\s+[-–—: \t]*\s*(.+)"
-                for ts_match in re.finditer(ts_pattern, desc):
-                    chapters.append({
-                        "time": ts_match.group(1),
-                        "label": ts_match.group(2).strip()
-                    })
+                # Match 00:00, (1:23), [01:23:45] format, with varied separators
+                ts_pattern = re.compile(r"[({\[]?((?:\d+:)?\d+:\d+)[)}\]]?\s*[-–—: \t]*\s*(.+)")
+                for line in desc.split("\n"):
+                    line = line.strip()
+                    if not line: continue
+                    match = ts_pattern.search(line)
+                    if match:
+                        chapters.append({
+                            "time": match.group(1),
+                            "label": match.group(2).strip()
+                        })
 
                 return {
                     "title": title,
@@ -1378,7 +1384,7 @@ async def extract_playlist_ids(playlist_url: str) -> list[str]:
             url,
         ]
         
-        cookies_path = "/app/cookies.txt"
+        cookies_path = settings.COOKIES_PATH
         if os.path.exists(cookies_path):
             args.insert(-1, "--cookies")
             args.insert(-1, cookies_path)
@@ -1417,19 +1423,27 @@ async def _run_subprocess(cmd: list[str], timeout: int = 60) -> subprocess.Compl
     """Run a subprocess asynchronously."""
     import asyncio
     
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    
     try:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         return subprocess.CompletedProcess(
             args=cmd,
             returncode=process.returncode or 0,
             stdout=stdout.decode("utf-8", errors="replace"),
             stderr=stderr.decode("utf-8", errors="replace")
+        )
+    except FileNotFoundError:
+        logger.error(f"Executable not found: {cmd[0]}. Please ensure it is installed and in PATH.")
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=127,
+            stdout="",
+            stderr=f"Executable not found: {cmd[0]}"
         )
     except asyncio.TimeoutError:
         try:
@@ -1440,20 +1454,10 @@ async def _run_subprocess(cmd: list[str], timeout: int = 60) -> subprocess.Compl
             args=cmd,
             returncode=-1,
             stdout="",
-            stderr="Subprocess timed out"
+            stderr=f"Subprocess timed out after {timeout} seconds"
         )
-    # Alias for structural compatibility
-    def get_video_info(self, *args, **kwargs):
-        """Legacy alias for extract_metadata."""
-        from app.services.transcript import extract_metadata
-        return extract_metadata(*args, **kwargs)
 
-# Global aliases for legacy support
-async def extract_metadata(platform_id: str) -> dict:
-    """Consolidated logic for getting video details and chapters."""
-    from app.services.transcript import _fetch_video_info_internal
-    return await _fetch_video_info_internal(platform_id)
-
+# Legacy global alias for extract_metadata
 async def get_video_info(platform_id: str) -> dict:
     """Legacy global alias for extract_metadata."""
     return await extract_metadata(platform_id)

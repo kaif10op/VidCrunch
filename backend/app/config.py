@@ -98,6 +98,9 @@ class Settings(BaseSettings):
     CREDIT_COST_QUIZ: int = 2
     CREDIT_COST_UPLOAD: int = 10
 
+    # ── Path Configurations ──
+    COOKIES_PATH: str = "/app/cookies.txt"
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
